@@ -1,11 +1,11 @@
 import "./globals.css";
-import { Inter } from "next/font/google";
-
-const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
-  title: "Flex Spot Lottery System",
-  description: "Fair lottery system for flexible work schedule assignments",
+  title: "FlexSpot - Smart Lottery System for Flexible Work Schedules",
+  description: "Transform your flexible work scheduling with our intelligent, fair, and transparent lottery system. Perfect for companies managing hybrid work arrangements.",
+  keywords: "flexible work, lottery system, work scheduling, hybrid work, employee management",
+  authors: [{ name: "FlexSpot Team" }],
+  viewport: "width=device-width, initial-scale=1",
 };
 
 export default function RootLayout({
@@ -15,9 +15,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
-        <div className="min-h-screen bg-gray-50">
-          <div className="container mx-auto px-4 py-8">{children}</div>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+      </head>
+      <body className="font-sans antialiased">
+        <div className="min-h-screen">
+          {children}
         </div>
       </body>
     </html>
