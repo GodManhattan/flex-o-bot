@@ -6,7 +6,18 @@ export default function HomePage() {
   console.log(
     "Supabase Key exists:",
     !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  ); // Add to the top of your HomePage component
+  console.log("=== ENVIRONMENT DEBUG ===");
+  console.log("Supabase URL:", process.env.NEXT_PUBLIC_SUPABASE_URL);
+  console.log(
+    "Supabase Key exists:",
+    !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   );
+  console.log(
+    "All NEXT_PUBLIC vars:",
+    Object.keys(process.env).filter((k) => k.startsWith("NEXT_PUBLIC_"))
+  );
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 relative overflow-hidden">
       {/* Background decorative elements */}
@@ -15,7 +26,6 @@ export default function HomePage() {
         <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-tr from-green-400/20 to-blue-600/20 rounded-full blur-3xl"></div>
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-gradient-to-r from-purple-400/10 to-pink-600/10 rounded-full blur-3xl"></div>
       </div>
-
       <div className="relative z-10 container mx-auto px-4 py-16">
         <div className="text-center mb-16">
           {/* Logo/Brand section */}
@@ -439,6 +449,17 @@ export default function HomePage() {
             </div>
           </div>
         </div>
+      </div>
+      // And add this visual debug info to your JSX:
+      <div className="fixed top-4 right-4 bg-red-100 border border-red-300 rounded p-4 max-w-md text-xs z-50">
+        <h3 className="font-bold text-red-800">ENV DEBUG</h3>
+        <p>URL: {process.env.NEXT_PUBLIC_SUPABASE_URL || "❌ MISSING"}</p>
+        <p>
+          Key:{" "}
+          {process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+            ? "✅ Found"
+            : "❌ MISSING"}
+        </p>
       </div>
     </div>
   );
