@@ -179,10 +179,10 @@ export default function UsersPage() {
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
           <h2 className="text-xl font-semibold mb-4">Bulk Upload Users</h2>
           <div className="mb-4">
-            <p className="text-sm text-gray-600 mb-2">
+            <p className="text-sm text-gray-900 mb-2">
               Upload a CSV file with columns: <strong>name, pin</strong>
             </p>
-            <p className="text-xs text-gray-500">Example: John Doe, 1234</p>
+            <p className="text-xs text-gray-900">Example: John Doe, 1234</p>
           </div>
           <div className="flex items-center space-x-4">
             <input
@@ -212,7 +212,7 @@ export default function UsersPage() {
         </div>
         <div className="p-6">
           {users.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">
+            <p className="text-gray-900 text-center py-8">
               No users added yet. Add users to start creating polls.
             </p>
           ) : (
@@ -231,7 +231,7 @@ export default function UsersPage() {
                     <tr key={user.id} className="border-b">
                       <td className="py-2">{user.name}</td>
                       <td className="py-2 font-mono">****</td>
-                      <td className="py-2 text-sm text-gray-600">
+                      <td className="py-2 text-sm text-gray-900">
                         {new Date(user.created_at).toLocaleDateString()}
                       </td>
                       <td className="py-2 text-right">

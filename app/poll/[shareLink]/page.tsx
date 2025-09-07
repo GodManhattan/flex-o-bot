@@ -499,7 +499,7 @@ export default function PollParticipationPage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-4">Poll Not Found</h1>
-          <p className="text-gray-600">
+          <p className="text-gray-900">
             This poll may have expired or been removed.
           </p>
         </div>
@@ -513,7 +513,7 @@ export default function PollParticipationPage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-4">Poll Closed</h1>
-          <p className="text-gray-600">
+          <p className="text-gray-900">
             This poll closed on {new Date(poll.open_until).toLocaleString()}
           </p>
         </div>
@@ -556,9 +556,9 @@ export default function PollParticipationPage() {
           <div className="text-center mb-6">
             <h1 className="text-2xl font-bold mb-2">{poll.title}</h1>
             {poll.description && (
-              <p className="text-gray-600 mb-4">{poll.description}</p>
+              <p className="text-gray-900 mb-4">{poll.description}</p>
             )}
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-900">
               Closes: {new Date(poll.open_until).toLocaleString()}
             </p>
           </div>
@@ -682,7 +682,7 @@ export default function PollParticipationPage() {
                 <h2 className="text-xl font-bold text-green-600 mb-2">
                   Entry Submitted!
                 </h2>
-                <p className="text-gray-600">
+                <p className="text-gray-900">
                   Hi {currentUser?.name}! Your entry for the{" "}
                   <strong>{spotType?.replace("_", " ")} spot</strong> has been
                   recorded.
@@ -796,7 +796,7 @@ export default function PollParticipationPage() {
                 </div>
 
                 <div className="mt-3 text-center">
-                  <div className="text-sm text-gray-600">
+                  <div className="text-sm text-gray-900">
                     Total Participants: <strong>{entries.length}</strong>
                   </div>
                 </div>
@@ -840,7 +840,7 @@ export default function PollParticipationPage() {
                             ))}
                           </ul>
                         ) : (
-                          <p className="text-gray-500 text-sm italic">
+                          <p className="text-gray-900 text-sm italic">
                             No winners
                           </p>
                         )}
@@ -874,7 +874,7 @@ export default function PollParticipationPage() {
                             ))}
                           </ul>
                         ) : (
-                          <p className="text-gray-500 text-sm italic">
+                          <p className="text-gray-900 text-sm italic">
                             No winners
                           </p>
                         )}
@@ -909,7 +909,7 @@ export default function PollParticipationPage() {
                             ))}
                           </ul>
                         ) : (
-                          <p className="text-gray-500 text-sm italic">
+                          <p className="text-gray-900 text-sm italic">
                             No winners
                           </p>
                         )}

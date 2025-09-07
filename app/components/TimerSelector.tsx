@@ -78,7 +78,7 @@ export const TimerSelector: React.FC<TimerSelectorProps> = ({
       <div className="space-y-4">
         {/* Preset Duration Buttons */}
         <div>
-          <p className="text-sm text-gray-600 mb-2">Quick Select:</p>
+          <p className="text-sm text-gray-900 mb-2">Quick Select:</p>
           <div className="grid grid-cols-3 gap-2">
             {PRESET_DURATIONS.map((preset) => (
               <button
@@ -104,7 +104,7 @@ export const TimerSelector: React.FC<TimerSelectorProps> = ({
               disabled={disabled}
               className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
             />
-            <span className="text-sm text-gray-600">
+            <span className="text-sm text-gray-900">
               Custom duration (minutes)
             </span>
           </label>
@@ -122,7 +122,7 @@ export const TimerSelector: React.FC<TimerSelectorProps> = ({
                 disabled={disabled}
                 className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-600">
+              <span className="text-sm text-gray-900">
                 minutes ({formatDuration(customMinutes)})
               </span>
             </div>
@@ -131,7 +131,7 @@ export const TimerSelector: React.FC<TimerSelectorProps> = ({
 
         {/* Exact Date/Time Picker */}
         <div>
-          <label className="block text-sm text-gray-600 mb-2">
+          <label className="block text-sm text-gray-900 mb-2">
             Or pick exact end time:
           </label>
           <input

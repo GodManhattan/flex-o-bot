@@ -158,7 +158,7 @@ export const AddUserForm: React.FC<AddUserFormProps> = ({
             {fieldErrors.pin && (
               <p className="mt-1 text-sm text-red-600">{fieldErrors.pin}</p>
             )}
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-gray-900">
               Enter a unique 4-digit PIN for this user
             </p>
           </div>

@@ -34,15 +34,32 @@ export default function DashboardPage() {
   const [polls, setPolls] = useState<Poll[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [authChecking, setAuthChecking] = useState(true);
   const [drawingResults, setDrawingResults] = useState<string | null>(null);
   const router = useRouter();
 
   const checkAuth = useCallback(async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
+    try {
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser();
+
+      console.log("Auth check result:", { user: user?.id, error });
+
+      if (error || !user) {
+        console.log("No authenticated user, redirecting to login");
+        router.push("/manager/login");
+        return false;
+      }
+
+      return true;
+    } catch (err) {
+      console.error("Auth check error:", err);
       router.push("/manager/login");
+      return false;
+    } finally {
+      setAuthChecking(false);
     }
   }, [router]);
 
@@ -51,7 +68,13 @@ export default function DashboardPage() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) return;
+
+      if (!user) {
+        console.log("No user found during data fetch");
+        return;
+      }
+
+      console.log("Fetching data for user:", user.id);
 
       const [pollsRes, usersRes] = await Promise.all([
         supabase
@@ -61,6 +84,13 @@ export default function DashboardPage() {
           .order("created_at", { ascending: false }),
         supabase.from("users").select("*").order("name"),
       ]);
+
+      console.log("Fetch results:", {
+        pollsError: pollsRes.error,
+        pollsCount: pollsRes.data?.length,
+        usersError: usersRes.error,
+        usersCount: usersRes.data?.length,
+      });
 
       if (pollsRes.data) {
         // Check and update poll status based on current time
@@ -92,8 +122,29 @@ export default function DashboardPage() {
   useAutoDrawResults(polls, fetchData);
 
   useEffect(() => {
-    checkAuth();
-    fetchData();
+    const initializeDashboard = async () => {
+      const isAuthenticated = await checkAuth();
+      if (isAuthenticated) {
+        await fetchData();
+      }
+    };
+
+    initializeDashboard();
+
+    // Set up auth state change listener
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("Auth state changed:", event, session?.user?.id);
+
+      if (event === "SIGNED_OUT" || !session) {
+        console.log("User signed out, redirecting to login");
+        router.push("/manager/login");
+      } else if (event === "SIGNED_IN" && session) {
+        console.log("User signed in, fetching data");
+        await fetchData();
+      }
+    });
 
     // Set up real-time subscription for poll updates
     const pollsSubscription = supabase
@@ -109,13 +160,19 @@ export default function DashboardPage() {
       .subscribe();
 
     return () => {
+      subscription?.unsubscribe();
       supabase.removeChannel(pollsSubscription);
     };
-  }, [checkAuth, fetchData]);
+  }, [checkAuth, fetchData, router]);
 
   const handleSignOut = async () => {
-    await signOut();
-    router.push("/");
+    try {
+      setLoading(true);
+      await signOut();
+      router.push("/");
+    } catch (error) {
+      console.error("Sign out error:", error);
+    }
   };
 
   const manualDrawResults = async (pollId: string) => {
@@ -149,32 +206,43 @@ export default function DashboardPage() {
       return {
         status: "completed",
         label: "🏆 Completed",
-        className: "bg-gray-100 text-gray-600",
+        className: "bg-gray-100 text-gray-800",
         canDraw: false,
       };
     } else if (endTime <= now) {
       return {
         status: "expired",
         label: "⏰ Expired",
-        className: "bg-red-100 text-red-600",
+        className: "bg-red-100 text-red-800",
         canDraw: true,
       };
     } else {
       return {
         status: "active",
         label: "🟢 Active",
-        className: "bg-green-100 text-green-600",
+        className: "bg-green-100 text-green-800",
         canDraw: false,
       };
     }
   };
+
+  if (authChecking) {
+    return (
+      <div className="max-w-6xl mx-auto">
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-900">Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
       <div className="max-w-6xl mx-auto">
         <div className="text-center py-8">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p>Loading dashboard...</p>
+          <p className="text-gray-900">Loading dashboard...</p>
         </div>
       </div>
     );
@@ -183,7 +251,7 @@ export default function DashboardPage() {
   return (
     <div className="max-w-6xl mx-auto">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Manager Dashboard</h1>
+        <h1 className="text-3xl font-bold text-gray-900">Manager Dashboard</h1>
         <div className="space-x-4">
           <Link
             href="/manager/users"
@@ -209,12 +277,14 @@ export default function DashboardPage() {
       <div className="grid lg:grid-cols-2 gap-8">
         {/* Polls Section */}
         <div>
-          <h2 className="text-2xl font-bold mb-4">Polls ({polls.length})</h2>
+          <h2 className="text-2xl font-bold mb-4 text-gray-900">
+            Polls ({polls.length})
+          </h2>
           {polls.length === 0 ? (
             <div className="bg-white rounded-lg shadow-md p-8 text-center">
-              <div className="text-gray-400 text-6xl mb-4">📊</div>
-              <p className="text-gray-500 text-lg mb-2">No polls created yet</p>
-              <p className="text-gray-400 text-sm mb-4">
+              <div className="text-gray-800 text-6xl mb-4">📊</div>
+              <p className="text-gray-700 text-lg mb-2">No polls created yet</p>
+              <p className="text-gray-900 text-sm mb-4">
                 Create your first poll to get started
               </p>
               <Link
@@ -238,11 +308,11 @@ export default function DashboardPage() {
                   >
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex-1">
-                        <h3 className="text-xl font-semibold mb-1">
+                        <h3 className="text-xl font-semibold mb-1 text-gray-900">
                           {poll.title}
                         </h3>
                         {poll.description && (
-                          <p className="text-gray-600 text-sm mb-2">
+                          <p className="text-gray-900 text-sm mb-2">
                             {poll.description}
                           </p>
                         )}
@@ -288,7 +358,7 @@ export default function DashboardPage() {
                     )}
 
                     {/* Poll Details */}
-                    <div className="text-sm text-gray-500 mb-4">
+                    <div className="text-sm text-gray-900 mb-4">
                       <p>
                         Created: {new Date(poll.created_at).toLocaleString()}
                       </p>
@@ -331,7 +401,7 @@ export default function DashboardPage() {
                                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                                 ></path>
                               </svg>
-                              Drawing...
+                              <span className="text-white">Drawing...</span>
                             </span>
                           ) : (
                             "🎲 Draw Results"
@@ -356,16 +426,16 @@ export default function DashboardPage() {
 
         {/* Users Section */}
         <div>
-          <h2 className="text-2xl font-bold mb-4">
+          <h2 className="text-2xl font-bold mb-4 text-gray-900">
             Employees ({users.length})
           </h2>
           {users.length === 0 ? (
             <div className="bg-white rounded-lg shadow-md p-8 text-center">
-              <div className="text-gray-400 text-6xl mb-4">👥</div>
-              <p className="text-gray-500 text-lg mb-2">
+              <div className="text-gray-800 text-6xl mb-4">👥</div>
+              <p className="text-gray-700 text-lg mb-2">
                 No employees added yet
               </p>
-              <p className="text-gray-400 text-sm mb-4">
+              <p className="text-gray-900 text-sm mb-4">
                 Add employees to start creating polls
               </p>
               <Link
@@ -379,7 +449,9 @@ export default function DashboardPage() {
             <div className="bg-white rounded-lg shadow-md">
               <div className="p-4 border-b">
                 <div className="flex justify-between items-center">
-                  <span className="font-semibold">Recent Employees</span>
+                  <span className="font-semibold text-gray-900">
+                    Recent Employees
+                  </span>
                   <Link
                     href="/manager/users"
                     className="text-blue-600 hover:text-blue-800 text-sm"
@@ -395,16 +467,16 @@ export default function DashboardPage() {
                     className="p-4 flex justify-between items-center hover:bg-gray-50"
                   >
                     <div>
-                      <h3 className="font-medium">{user.name}</h3>
-                      <p className="text-sm text-gray-500">
+                      <h3 className="font-medium text-gray-900">{user.name}</h3>
+                      <p className="text-sm text-gray-900">
                         Added {new Date(user.created_at).toLocaleDateString()}
                       </p>
                     </div>
-                    <div className="font-mono text-sm text-gray-400">••••</div>
+                    <div className="font-mono text-sm text-gray-900">••••</div>
                   </div>
                 ))}
                 {users.length > 5 && (
-                  <div className="p-4 text-center text-gray-500 text-sm">
+                  <div className="p-4 text-center text-gray-900 text-sm">
                     And {users.length - 5} more employees...
                   </div>
                 )}

@@ -248,7 +248,7 @@ export default function PollDetailsPage() {
       return {
         status: "unknown",
         label: "Unknown",
-        className: "bg-gray-100 text-gray-600",
+        className: "bg-gray-100 text-gray-900",
       };
 
     const now = new Date();
@@ -362,7 +362,7 @@ export default function PollDetailsPage() {
           <div className="flex-1">
             <h1 className="text-3xl font-bold mb-2">{poll.title}</h1>
             {poll.description && (
-              <p className="text-gray-600 mb-4">{poll.description}</p>
+              <p className="text-gray-900 mb-4">{poll.description}</p>
             )}
           </div>
 
@@ -372,7 +372,7 @@ export default function PollDetailsPage() {
             >
               {pollStatus.label}
             </span>
-            <p className="text-sm text-gray-600 text-right">
+            <p className="text-sm text-gray-900 text-right">
               {pollStatus.description}
             </p>
 
@@ -383,7 +383,7 @@ export default function PollDetailsPage() {
             )}
 
             {refreshing && (
-              <div className="flex items-center text-sm text-gray-600">
+              <div className="flex items-center text-sm text-gray-900">
                 <svg
                   className="animate-spin -ml-1 mr-2 h-4 w-4"
                   fill="none"
@@ -511,29 +511,29 @@ export default function PollDetailsPage() {
           </h3>
           <div className="space-y-3">
             <div className="flex justify-between items-center py-2 border-b border-gray-100">
-              <span className="text-gray-600">🌅 AM Spots:</span>
+              <span className="text-gray-900">🌅 AM Spots:</span>
               <span className="font-medium text-blue-600">{poll.am_spots}</span>
             </div>
             <div className="flex justify-between items-center py-2 border-b border-gray-100">
-              <span className="text-gray-600">🌇 PM Spots:</span>
+              <span className="text-gray-900">🌇 PM Spots:</span>
               <span className="font-medium text-orange-600">
                 {poll.pm_spots}
               </span>
             </div>
             <div className="flex justify-between items-center py-2 border-b border-gray-100">
-              <span className="text-gray-600">🌅🌇 All Day Spots:</span>
+              <span className="text-gray-900">🌅🌇 All Day Spots:</span>
               <span className="font-medium text-purple-600">
                 {poll.all_day_spots}
               </span>
             </div>
             <div className="flex justify-between items-center py-2 border-b border-gray-100">
-              <span className="text-gray-600">📅 Created:</span>
+              <span className="text-gray-900">📅 Created:</span>
               <span className="font-medium">
                 {new Date(poll.created_at).toLocaleDateString()}
               </span>
             </div>
             <div className="flex justify-between items-center py-2">
-              <span className="text-gray-600">⏰ Closes:</span>
+              <span className="text-gray-900">⏰ Closes:</span>
               <span className="font-medium">
                 {pollEndTime.toLocaleString()}
               </span>
@@ -547,25 +547,25 @@ export default function PollDetailsPage() {
           </h3>
           <div className="space-y-3">
             <div className="flex justify-between items-center py-2 border-b border-gray-100">
-              <span className="text-gray-600">Total Entries:</span>
+              <span className="text-gray-900">Total Entries:</span>
               <span className="font-medium text-lg">{entries.length}</span>
             </div>
             <div className="flex justify-between items-center py-2 border-b border-gray-100">
-              <span className="text-gray-600">🌅 AM Entries:</span>
+              <span className="text-gray-900">🌅 AM Entries:</span>
               <span className="font-medium text-blue-600">
                 {entriesByType.am.length}
                 {poll.am_spots > 0 && ` / ${poll.am_spots}`}
               </span>
             </div>
             <div className="flex justify-between items-center py-2 border-b border-gray-100">
-              <span className="text-gray-600">🌇 PM Entries:</span>
+              <span className="text-gray-900">🌇 PM Entries:</span>
               <span className="font-medium text-orange-600">
                 {entriesByType.pm.length}
                 {poll.pm_spots > 0 && ` / ${poll.pm_spots}`}
               </span>
             </div>
             <div className="flex justify-between items-center py-2">
-              <span className="text-gray-600">🌅🌇 All Day Entries:</span>
+              <span className="text-gray-900">🌅🌇 All Day Entries:</span>
               <span className="font-medium text-purple-600">
                 {entriesByType.all_day.length}
                 {poll.all_day_spots > 0 && ` / ${poll.all_day_spots}`}
@@ -610,7 +610,7 @@ export default function PollDetailsPage() {
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-gray-500 text-sm italic">
+                  <p className="text-gray-900 text-sm italic">
                     No winners drawn
                   </p>
                 )}
@@ -637,7 +637,7 @@ export default function PollDetailsPage() {
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-gray-500 text-sm italic">
+                  <p className="text-gray-900 text-sm italic">
                     No winners drawn
                   </p>
                 )}
@@ -665,7 +665,7 @@ export default function PollDetailsPage() {
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-gray-500 text-sm italic">
+                  <p className="text-gray-900 text-sm italic">
                     No winners drawn
                   </p>
                 )}
@@ -685,9 +685,9 @@ export default function PollDetailsPage() {
         <div className="p-6">
           {entries.length === 0 ? (
             <div className="text-center py-12">
-              <div className="text-gray-400 text-6xl mb-4">📭</div>
-              <p className="text-gray-500 text-lg">No entries yet</p>
-              <p className="text-gray-400 text-sm">
+              <div className="text-gray-800 text-6xl mb-4">📭</div>
+              <p className="text-gray-900 text-lg">No entries yet</p>
+              <p className="text-gray-800 text-sm">
                 {isPollActive
                   ? "Share the poll link with employees to start collecting entries"
                   : "No employees participated in this poll"}
@@ -719,7 +719,7 @@ export default function PollDetailsPage() {
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-gray-500 text-sm italic">No entries</p>
+                  <p className="text-gray-900 text-sm italic">No entries</p>
                 )}
               </div>
 
@@ -747,7 +747,7 @@ export default function PollDetailsPage() {
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-gray-500 text-sm italic">No entries</p>
+                  <p className="text-gray-900 text-sm italic">No entries</p>
                 )}
               </div>
 
@@ -775,7 +775,7 @@ export default function PollDetailsPage() {
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-gray-500 text-sm italic">No entries</p>
+                  <p className="text-gray-900 text-sm italic">No entries</p>
                 )}
               </div>
             </div>

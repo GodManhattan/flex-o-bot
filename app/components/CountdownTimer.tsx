@@ -57,20 +57,20 @@ export const CountdownTimer: React.FC<CountdownTimerProps> = ({
                 {unit.value.toString().padStart(2, "0")}
               </div>
               {showLabels && (
-                <div className="text-xs text-gray-500 uppercase tracking-wide">
+                <div className="text-xs text-gray-900 uppercase tracking-wide">
                   {unit.label}
                 </div>
               )}
             </div>
             {index < timeUnits.length - 1 && (
-              <div className={`${digitClasses[size]} text-gray-400 px-1`}>
+              <div className={`${digitClasses[size]} text-gray-800 px-1`}>
                 :
               </div>
             )}
           </React.Fragment>
         ))}
       </div>
-      <span className="text-gray-600 text-sm">remaining</span>
+      <span className="text-gray-900 text-sm">remaining</span>
     </div>
   );
 };

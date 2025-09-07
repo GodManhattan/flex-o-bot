@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/app/lib/supabase";
+import { useAuth } from "@/app/contexts/AuthContext";
+import { RouteGuard } from "@/app/components/RouteGuard";
 
-export default function CreatePollPage() {
+function CreatePollContent() {
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -14,16 +16,14 @@ export default function CreatePollPage() {
   });
   const [durationMinutes, setDurationMinutes] = useState(60);
   const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
     if (!user) return;
+
+    setLoading(true);
 
     // Calculate end time based on duration
     const now = new Date();
@@ -86,24 +86,34 @@ export default function CreatePollPage() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-3xl font-bold mb-8">Create New Poll</h1>
+      <div className="mb-6">
+        <button
+          onClick={() => router.push("/manager/dashboard")}
+          className="text-blue-600 hover:underline mb-4 flex items-center"
+        >
+          ← Back to Dashboard
+        </button>
+        <h1 className="text-3xl font-bold text-gray-900">Create New Poll</h1>
+      </div>
 
       <div className="bg-white rounded-lg shadow-md p-6">
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block text-sm font-medium mb-2">Poll Title</label>
+            <label className="block text-sm font-medium mb-2 text-gray-900">
+              Poll Title
+            </label>
             <input
               type="text"
               name="title"
               value={formData.title}
               onChange={handleInputChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">
+            <label className="block text-sm font-medium mb-2 text-gray-900">
               Description (Optional)
             </label>
             <textarea
@@ -111,35 +121,39 @@ export default function CreatePollPage() {
               value={formData.description}
               onChange={handleInputChange}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
             />
           </div>
 
           <div className="grid md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-2">AM Spots</label>
+              <label className="block text-sm font-medium mb-2 text-gray-900">
+                AM Spots
+              </label>
               <input
                 type="number"
                 name="am_spots"
                 value={formData.am_spots}
                 onChange={handleInputChange}
                 min="0"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">PM Spots</label>
+              <label className="block text-sm font-medium mb-2 text-gray-900">
+                PM Spots
+              </label>
               <input
                 type="number"
                 name="pm_spots"
                 value={formData.pm_spots}
                 onChange={handleInputChange}
                 min="0"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">
+              <label className="block text-sm font-medium mb-2 text-gray-900">
                 All Day Spots
               </label>
               <input
@@ -148,13 +162,13 @@ export default function CreatePollPage() {
                 value={formData.all_day_spots}
                 onChange={handleInputChange}
                 min="0"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-4">
+            <label className="block text-sm font-medium mb-4 text-gray-900">
               Poll Duration
             </label>
 
@@ -163,7 +177,7 @@ export default function CreatePollPage() {
               <div className="text-2xl font-bold text-blue-600 mb-1">
                 {formatDuration(durationMinutes)}
               </div>
-              <div className="text-sm text-gray-600">
+              <div className="text-sm text-gray-900">
                 Poll will close at: {calculateEndTime()}
               </div>
             </div>
@@ -188,7 +202,7 @@ export default function CreatePollPage() {
               />
 
               {/* Slider markers */}
-              <div className="flex justify-between text-xs text-gray-500 mt-2">
+              <div className="flex justify-between text-xs text-gray-900 mt-2">
                 <span>3 min</span>
                 <span>1 hr</span>
                 <span>2 hrs</span>
@@ -208,7 +222,7 @@ export default function CreatePollPage() {
             </button>
             <button
               type="button"
-              onClick={() => router.back()}
+              onClick={() => router.push("/manager/dashboard")}
               className="flex-1 bg-gray-600 text-white py-3 rounded-lg hover:bg-gray-700 transition-colors"
             >
               Cancel
@@ -253,5 +267,13 @@ export default function CreatePollPage() {
         }
       `}</style>
     </div>
+  );
+}
+
+export default function CreatePollPage() {
+  return (
+    <RouteGuard requireAuth={true}>
+      <CreatePollContent />
+    </RouteGuard>
   );
 }
