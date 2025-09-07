@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/app/contexts/AuthContext";
 
@@ -18,78 +18,73 @@ export function RouteGuard({
   const { user, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-
-  console.log("🛡️ RouteGuard:", {
-    pathname,
-    requireAuth,
-    hasUser: !!user,
-    loading,
-    redirectTo,
-  });
+  const [shouldRender, setShouldRender] = useState(false);
 
   useEffect(() => {
+    // Don't do anything while auth is still loading
     if (loading) {
-      console.log("⏳ RouteGuard: Still loading, waiting...");
+      console.log("⏳ RouteGuard: Auth loading, waiting...");
+      setShouldRender(false);
       return;
     }
 
-    console.log("🛡️ RouteGuard: Checking protection...", {
+    console.log("🛡️ RouteGuard: Checking access...", {
+      pathname,
       requireAuth,
       hasUser: !!user,
-      pathname,
     });
 
-    if (requireAuth && !user) {
-      console.log(
-        "🔒 RouteGuard: Auth required but no user, redirecting to:",
-        redirectTo
-      );
-      router.replace(redirectTo);
-    } else if (!requireAuth && user) {
-      console.log(
-        "🔓 RouteGuard: User authenticated but shouldn't be on this page"
-      );
-      // Only redirect from login/register pages
-      if (pathname === "/manager/login" || pathname === "/manager/register") {
-        console.log(
-          "🔄 RouteGuard: Redirecting authenticated user to dashboard"
-        );
-        router.replace("/manager/dashboard");
+    // Check if access should be granted
+    const shouldAllowAccess = () => {
+      if (requireAuth) {
+        // Protected route - user must be authenticated
+        return !!user;
       } else {
-        console.log("👍 RouteGuard: User authenticated but page is allowed");
+        // Public route - always allow access
+        // But we might redirect authenticated users away from login/register
+        return true;
       }
-    } else {
-      console.log("✅ RouteGuard: All good, showing content");
-    }
-  }, [user, loading, requireAuth, router, redirectTo, pathname]);
+    };
 
-  if (loading) {
+    const hasAccess = shouldAllowAccess();
+
+    if (!hasAccess) {
+      console.log("🔒 RouteGuard: Access denied, redirecting to:", redirectTo);
+      setShouldRender(false);
+      router.replace(redirectTo);
+      return;
+    }
+
+    // Special case: redirect authenticated users away from login/register
+    if (
+      !requireAuth &&
+      user &&
+      (pathname === "/manager/login" || pathname === "/manager/register")
+    ) {
+      console.log("🔄 RouteGuard: Redirecting authenticated user to dashboard");
+      setShouldRender(false);
+      router.replace("/manager/dashboard");
+      return;
+    }
+
+    // All checks passed - render the content
+    console.log("✅ RouteGuard: Access granted");
+    setShouldRender(true);
+  }, [user, loading, requireAuth, pathname, router, redirectTo]);
+
+  // Show loading while auth is loading or while we're processing
+  if (loading || !shouldRender) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-900">Loading...</p>
+          <p className="text-gray-600">
+            {loading ? "Checking authentication..." : "Loading..."}
+          </p>
         </div>
       </div>
     );
   }
 
-  if (requireAuth && !user) {
-    console.log("🚫 RouteGuard: Blocking access, will redirect");
-    return null; // Will redirect
-  }
-
-  if (
-    !requireAuth &&
-    user &&
-    (pathname === "/manager/login" || pathname === "/manager/register")
-  ) {
-    console.log(
-      "🚫 RouteGuard: Blocking access to login/register for authenticated user"
-    );
-    return null; // Will redirect
-  }
-
-  console.log("✅ RouteGuard: Rendering children");
   return <>{children}</>;
 }

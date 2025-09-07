@@ -1,26 +1,69 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap");
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+/* ==== Base styles ==== */
+html,
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  @apply h-full w-full;
+}
+
+/* Light theme by default - clean and simple */
+body {
+  @apply bg-white text-gray-900;
+}
+
+/* Remove automatic dark mode - let Tailwind classes handle it explicitly */
+/* This prevents conflicts with your component styles */
+
+/* Links */
+a {
+  @apply text-blue-600 hover:underline;
+}
+
+/* Images responsive */
+img {
+  @apply max-w-full h-auto;
+}
+
+/* Form elements - ensure they have proper contrast */
+input,
+textarea,
+select {
+  @apply text-gray-900 bg-white border-gray-300;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  @apply outline-none ring-2 ring-blue-500 border-blue-500;
+}
+
+/* Buttons keep their explicit styling from components */
+button {
+  @apply text-current; /* Inherit text color from parent/component */
+}
+
+/* Ensure placeholders are visible */
+input::placeholder,
+textarea::placeholder {
+  @apply text-gray-500;
+}
+
+/* Override any unwanted text colors */
+.text-white {
+  color: white !important;
+}
+
+/* Make sure black text is actually black */
+.text-gray-900,
+.text-black {
+  color: #111827 !important;
+}
+
+.text-gray-800 {
+  color: #1f2937 !important;
+}
+
+.text-gray-700 {
+  color: #374151 !important;
 }

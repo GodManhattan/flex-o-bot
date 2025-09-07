@@ -1,12 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/app/lib/supabase";
 import { CountdownTimer } from "@/app/components/CountdownTimer";
 import { useErrorHandler } from "@/app/hooks/useErrorHandler";
 import { ErrorAlert } from "@/app/components/ErrorAlert";
+import {
+  AfternoonIcon,
+  CopyIcon,
+  EntriesIcon,
+  FullDayIcon,
+  InfoIcon,
+  MorningIcon,
+  OverviewIcon,
+  ResultsIcon,
+  ShareIcon,
+  TrophyIcon,
+} from "@/app/components/Icons";
 
 interface Poll {
   id: string;
@@ -55,6 +67,10 @@ export default function PollDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [drawingResults, setDrawingResults] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState<
+    "overview" | "entries" | "results"
+  >("overview");
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
   const { error, handleError, clearError } = useErrorHandler();
 
   useEffect(() => {
@@ -106,6 +122,7 @@ export default function PollDetailsPage() {
         .subscribe();
 
       return () => {
+        console.log("Cleaning up subscription");
         supabase.removeChannel(subscription);
       };
     }
@@ -292,13 +309,30 @@ export default function PollDetailsPage() {
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto">
-        <div className="animate-pulse space-y-6">
-          <div className="h-8 bg-gray-200 rounded w-1/3"></div>
-          <div className="h-32 bg-gray-200 rounded"></div>
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="h-48 bg-gray-200 rounded"></div>
-            <div className="h-48 bg-gray-200 rounded"></div>
+      <div className="min-h-screen bg-gray-50">
+        {/* Mobile Header Skeleton */}
+        <div className="bg-white shadow-sm border-b px-4 py-4">
+          <div className="animate-pulse">
+            <div className="h-4 bg-gray-200 rounded w-20 mb-3"></div>
+            <div className="h-6 bg-gray-200 rounded w-48"></div>
+          </div>
+        </div>
+
+        {/* Content Skeleton */}
+        <div className="p-4 space-y-4">
+          <div className="animate-pulse space-y-4">
+            <div className="bg-white rounded-lg p-4">
+              <div className="h-4 bg-gray-200 rounded w-1/3 mb-2"></div>
+              <div className="h-8 bg-gray-200 rounded w-3/4 mb-4"></div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="h-16 bg-gray-200 rounded"></div>
+                <div className="h-16 bg-gray-200 rounded"></div>
+                <div className="h-16 bg-gray-200 rounded"></div>
+              </div>
+            </div>
+            <div className="bg-white rounded-lg p-4">
+              <div className="h-32 bg-gray-200 rounded"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -307,18 +341,19 @@ export default function PollDetailsPage() {
 
   if (!poll) {
     return (
-      <div className="max-w-4xl mx-auto text-center py-16">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-8 max-w-md mx-auto">
-          <h1 className="text-2xl font-bold mb-4 text-red-800">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg shadow-sm p-6 text-center max-w-sm w-full">
+          <div className="text-red-500 text-5xl mb-4">😞</div>
+          <h1 className="text-xl font-bold mb-2 text-red-800">
             Poll Not Found
           </h1>
-          <p className="text-red-600 mb-6">
+          <p className="text-red-600 mb-4 text-sm">
             This poll may have been deleted or you don't have permission to view
             it.
           </p>
           <button
             onClick={() => router.push("/manager/dashboard")}
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+            className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
           >
             Back to Dashboard
           </button>
@@ -330,7 +365,6 @@ export default function PollDetailsPage() {
   const pollStatus = getPollStatus();
   const shareUrl = `${window.location.origin}/poll/${poll.share_link}`;
   const pollEndTime = new Date(poll.open_until);
-  const now = new Date();
   const isPollActive = pollStatus.status === "active";
   const isPollExpired = pollStatus.status === "expired";
   const isPollCompleted = pollStatus.status === "completed";
@@ -349,439 +383,821 @@ export default function PollDetailsPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="mb-8">
-        <button
-          onClick={() => router.back()}
-          className="text-blue-600 hover:underline mb-4 flex items-center"
-        >
-          ← Back to Dashboard
-        </button>
-
-        <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-4">
-          <div className="flex-1">
-            <h1 className="text-3xl font-bold mb-2">{poll.title}</h1>
-            {poll.description && (
-              <p className="text-gray-900 mb-4">{poll.description}</p>
-            )}
-          </div>
-
-          <div className="flex flex-col items-end space-y-3">
-            <span
-              className={`px-4 py-2 rounded-full text-sm font-semibold ${pollStatus.className}`}
-            >
-              {pollStatus.label}
-            </span>
-            <p className="text-sm text-gray-900 text-right">
-              {pollStatus.description}
-            </p>
-
-            {isPollActive && (
-              <div className="bg-white border border-green-200 rounded-lg px-4 py-3">
-                <CountdownTimer targetDate={pollEndTime} size="md" />
-              </div>
-            )}
-
-            {refreshing && (
-              <div className="flex items-center text-sm text-gray-900">
+    <div className="min-h-screen bg-gray-50 ">
+      {/* Mobile Header */}
+      <div className="bg-white shadow-sm border-b sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3 flex-1 min-w-0">
+              <button
+                onClick={() => router.back()}
+                className="p-2 hover:bg-gray-100 rounded-lg -ml-2"
+              >
                 <svg
-                  className="animate-spin -ml-1 mr-2 h-4 w-4"
+                  className="w-5 h-5"
                   fill="none"
+                  stroke="currentColor"
                   viewBox="0 0 24 24"
                 >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
                   <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                  />
                 </svg>
-                Refreshing...
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <ErrorAlert error={error} onClose={clearError} />
-
-      {/* Action Buttons for Expired Polls */}
-      {isPollExpired && (
-        <div className="bg-orange-50 border border-orange-200 rounded-lg p-6 mb-8">
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold text-orange-900 mb-2">
-                ⏰ Poll Has Expired
-              </h3>
-              <p className="text-orange-700 mb-4">
-                This poll closed on {pollEndTime.toLocaleString()}.
-                {canDrawResults
-                  ? " You can now draw the results."
-                  : " Results have already been drawn."}
-              </p>
-            </div>
-
-            {canDrawResults && (
-              <button
-                onClick={manualDrawResults}
-                disabled={drawingResults}
-                className="bg-orange-600 text-white px-6 py-3 rounded-lg hover:bg-orange-700 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {drawingResults ? (
-                  <span className="flex items-center">
-                    <svg
-                      className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      ></circle>
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
-                    Drawing Results...
-                  </span>
-                ) : (
-                  "🎲 Draw Results"
-                )}
               </button>
-            )}
-          </div>
-        </div>
-      )}
+              <div className="flex-1 min-w-0">
+                <h1 className="text-lg font-semibold text-gray-900 truncate">
+                  {poll.title}
+                </h1>
+                <div className="flex items-center space-x-2">
+                  <span
+                    className={`px-2 py-1 rounded-full text-xs font-medium ${pollStatus.className}`}
+                  >
+                    {pollStatus.label}
+                  </span>
+                  {refreshing && (
+                    <div className="flex items-center text-xs text-gray-500">
+                      <svg
+                        className="animate-spin -ml-1 mr-1 h-3 w-3"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
+                      </svg>
+                      Updating...
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
 
-      {/* Share Link Section */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8">
-        <h3 className="font-semibold mb-2 text-blue-900">
-          📤 Share with Employees
-        </h3>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-2">
-          <input
-            type="text"
-            value={shareUrl}
-            readOnly
-            className="flex-1 px-3 py-2 bg-white border border-blue-300 rounded text-sm"
-          />
-          <div className="flex space-x-2">
+            {/* Mobile Menu Button */}
             <button
-              onClick={copyShareLink}
-              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm whitespace-nowrap"
+              onClick={() => setShowMobileMenu(!showMobileMenu)}
+              className="p-2 hover:bg-gray-100 rounded-lg"
             >
-              📋 Copy
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 5v.01M12 12v.01M12 19v.01"
+                />
+              </svg>
             </button>
-            <Link
-              href={`/poll/${poll.share_link}`}
-              target="_blank"
-              className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 text-sm whitespace-nowrap"
-            >
-              👁️ Preview
-            </Link>
           </div>
-        </div>
-        {isPollExpired && (
-          <p className="text-orange-700 text-sm mt-2">
-            ⚠️ This poll has expired. The link will show a "Poll Closed" message
-            to employees.
-          </p>
-        )}
-      </div>
 
-      {/* Poll Stats Grid */}
-      <div className="grid lg:grid-cols-2 gap-6 mb-8">
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h3 className="text-lg font-semibold mb-4 flex items-center">
-            📊 Poll Configuration
-          </h3>
-          <div className="space-y-3">
-            <div className="flex justify-between items-center py-2 border-b border-gray-100">
-              <span className="text-gray-900">🌅 AM Spots:</span>
-              <span className="font-medium text-blue-600">{poll.am_spots}</span>
-            </div>
-            <div className="flex justify-between items-center py-2 border-b border-gray-100">
-              <span className="text-gray-900">🌇 PM Spots:</span>
-              <span className="font-medium text-orange-600">
-                {poll.pm_spots}
-              </span>
-            </div>
-            <div className="flex justify-between items-center py-2 border-b border-gray-100">
-              <span className="text-gray-900">🌅🌇 All Day Spots:</span>
-              <span className="font-medium text-purple-600">
-                {poll.all_day_spots}
-              </span>
-            </div>
-            <div className="flex justify-between items-center py-2 border-b border-gray-100">
-              <span className="text-gray-900">📅 Created:</span>
-              <span className="font-medium">
-                {new Date(poll.created_at).toLocaleDateString()}
-              </span>
-            </div>
-            <div className="flex justify-between items-center py-2">
-              <span className="text-gray-900">⏰ Closes:</span>
-              <span className="font-medium">
-                {pollEndTime.toLocaleString()}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h3 className="text-lg font-semibold mb-4 flex items-center">
-            👥 Participation Stats
-          </h3>
-          <div className="space-y-3">
-            <div className="flex justify-between items-center py-2 border-b border-gray-100">
-              <span className="text-gray-900">Total Entries:</span>
-              <span className="font-medium text-lg">{entries.length}</span>
-            </div>
-            <div className="flex justify-between items-center py-2 border-b border-gray-100">
-              <span className="text-gray-900">🌅 AM Entries:</span>
-              <span className="font-medium text-blue-600">
-                {entriesByType.am.length}
-                {poll.am_spots > 0 && ` / ${poll.am_spots}`}
-              </span>
-            </div>
-            <div className="flex justify-between items-center py-2 border-b border-gray-100">
-              <span className="text-gray-900">🌇 PM Entries:</span>
-              <span className="font-medium text-orange-600">
-                {entriesByType.pm.length}
-                {poll.pm_spots > 0 && ` / ${poll.pm_spots}`}
-              </span>
-            </div>
-            <div className="flex justify-between items-center py-2">
-              <span className="text-gray-900">🌅🌇 All Day Entries:</span>
-              <span className="font-medium text-purple-600">
-                {entriesByType.all_day.length}
-                {poll.all_day_spots > 0 && ` / ${poll.all_day_spots}`}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Results Section */}
-      {isPollCompleted && (
-        <div className="bg-white rounded-lg shadow-md mb-8">
-          <div className="p-6 border-b bg-gradient-to-r from-green-50 to-blue-50">
-            <h3 className="text-xl font-semibold text-green-800 flex items-center">
-              🏆 Results
-            </h3>
-            <p className="text-green-700 text-sm mt-1">
-              Results drawn on{" "}
-              {new Date(poll.updated_at || poll.created_at).toLocaleString()}
-            </p>
-          </div>
-          <div className="p-6">
-            <div className="grid md:grid-cols-3 gap-6">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h4 className="font-semibold mb-3 text-blue-900 flex items-center">
-                  🌅 AM Winners ({resultsByType.am.length}/{poll.am_spots})
-                </h4>
-                {resultsByType.am.length > 0 ? (
-                  <ul className="space-y-2">
-                    {resultsByType.am.map((result, index) => (
-                      <li
-                        key={result.id}
-                        className="flex items-center text-green-700"
+          {/* Mobile Action Menu */}
+          {showMobileMenu && (
+            <div className="mt-3 pt-3 border-t border-gray-200 space-y-2">
+              {canDrawResults && (
+                <button
+                  onClick={() => {
+                    manualDrawResults();
+                    setShowMobileMenu(false);
+                  }}
+                  disabled={drawingResults}
+                  className="w-full bg-orange-600 text-white px-4 py-2.5 rounded-lg hover:bg-orange-700 font-medium disabled:opacity-50 flex items-center justify-center"
+                >
+                  {drawingResults ? (
+                    <>
+                      <svg
+                        className="animate-spin -ml-1 mr-2 h-4 w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
                       >
-                        <span className="bg-green-100 text-green-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-2">
-                          {index + 1}
-                        </span>
-                        <span className="font-medium">
-                          {result.users?.name}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-gray-900 text-sm italic">
-                    No winners drawn
-                  </p>
-                )}
-              </div>
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
+                      </svg>
+                      Drawing Results...
+                    </>
+                  ) : (
+                    <>🎲 Draw Results</>
+                  )}
+                </button>
+              )}
 
-              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                <h4 className="font-semibold mb-3 text-orange-900 flex items-center">
-                  🌇 PM Winners ({resultsByType.pm.length}/{poll.pm_spots})
-                </h4>
-                {resultsByType.pm.length > 0 ? (
-                  <ul className="space-y-2">
-                    {resultsByType.pm.map((result, index) => (
-                      <li
-                        key={result.id}
-                        className="flex items-center text-green-700"
-                      >
-                        <span className="bg-green-100 text-green-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-2">
-                          {index + 1}
-                        </span>
-                        <span className="font-medium">
-                          {result.users?.name}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-gray-900 text-sm italic">
-                    No winners drawn
-                  </p>
-                )}
-              </div>
-
-              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                <h4 className="font-semibold mb-3 text-purple-900 flex items-center">
-                  🌅🌇 All Day Winners ({resultsByType.all_day.length}/
-                  {poll.all_day_spots})
-                </h4>
-                {resultsByType.all_day.length > 0 ? (
-                  <ul className="space-y-2">
-                    {resultsByType.all_day.map((result, index) => (
-                      <li
-                        key={result.id}
-                        className="flex items-center text-green-700"
-                      >
-                        <span className="bg-green-100 text-green-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-2">
-                          {index + 1}
-                        </span>
-                        <span className="font-medium">
-                          {result.users?.name}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-gray-900 text-sm italic">
-                    No winners drawn
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* All Entries Section */}
-      <div className="bg-white rounded-lg shadow-md">
-        <div className="p-6 border-b">
-          <h3 className="text-xl font-semibold flex items-center">
-            📝 All Entries ({entries.length})
-          </h3>
-        </div>
-        <div className="p-6">
-          {entries.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="text-gray-800 text-6xl mb-4">📭</div>
-              <p className="text-gray-900 text-lg">No entries yet</p>
-              <p className="text-gray-800 text-sm">
-                {isPollActive
-                  ? "Share the poll link with employees to start collecting entries"
-                  : "No employees participated in this poll"}
-              </p>
-            </div>
-          ) : (
-            <div className="grid md:grid-cols-3 gap-6">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h4 className="font-semibold mb-3 text-blue-900">
-                  🌅 AM Entries ({entriesByType.am.length})
-                </h4>
-                {entriesByType.am.length > 0 ? (
-                  <ul className="space-y-1">
-                    {entriesByType.am.map((entry, index) => (
-                      <li key={entry.id} className="text-sm flex items-center">
-                        <span className="text-blue-600 mr-2 text-xs">
-                          #{index + 1}
-                        </span>
-                        <span>{entry.users?.name}</span>
-                        {isPollCompleted &&
-                          resultsByType.am.some(
-                            (r) => r.user_id === entry.user_id
-                          ) && (
-                            <span className="ml-auto text-green-600 font-bold">
-                              🏆
-                            </span>
-                          )}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-gray-900 text-sm italic">No entries</p>
-                )}
-              </div>
-
-              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                <h4 className="font-semibold mb-3 text-orange-900">
-                  🌇 PM Entries ({entriesByType.pm.length})
-                </h4>
-                {entriesByType.pm.length > 0 ? (
-                  <ul className="space-y-1">
-                    {entriesByType.pm.map((entry, index) => (
-                      <li key={entry.id} className="text-sm flex items-center">
-                        <span className="text-orange-600 mr-2 text-xs">
-                          #{index + 1}
-                        </span>
-                        <span>{entry.users?.name}</span>
-                        {isPollCompleted &&
-                          resultsByType.pm.some(
-                            (r) => r.user_id === entry.user_id
-                          ) && (
-                            <span className="ml-auto text-green-600 font-bold">
-                              🏆
-                            </span>
-                          )}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-gray-900 text-sm italic">No entries</p>
-                )}
-              </div>
-
-              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                <h4 className="font-semibold mb-3 text-purple-900">
-                  🌅🌇 All Day Entries ({entriesByType.all_day.length})
-                </h4>
-                {entriesByType.all_day.length > 0 ? (
-                  <ul className="space-y-1">
-                    {entriesByType.all_day.map((entry, index) => (
-                      <li key={entry.id} className="text-sm flex items-center">
-                        <span className="text-purple-600 mr-2 text-xs">
-                          #{index + 1}
-                        </span>
-                        <span>{entry.users?.name}</span>
-                        {isPollCompleted &&
-                          resultsByType.all_day.some(
-                            (r) => r.user_id === entry.user_id
-                          ) && (
-                            <span className="ml-auto text-green-600 font-bold">
-                              🏆
-                            </span>
-                          )}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-gray-900 text-sm italic">No entries</p>
-                )}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => {
+                    copyShareLink();
+                    setShowMobileMenu(false);
+                  }}
+                  className="bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium flex items-center justify-center"
+                >
+                  <InfoIcon /> Copy Link
+                </button>
+                <Link
+                  href={`/poll/${poll.share_link}`}
+                  target="_blank"
+                  onClick={() => setShowMobileMenu(false)}
+                  className="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 text-sm font-medium text-center flex items-center justify-center"
+                >
+                  <InfoIcon /> Preview
+                </Link>
               </div>
             </div>
           )}
         </div>
       </div>
+
+      <div className="p-4 space-y-4 max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+        <ErrorAlert error={error} onClose={clearError} />
+
+        {/* Poll Status Card */}
+        {isPollExpired && canDrawResults && (
+          <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <h3 className="font-semibold text-orange-900 mb-1">
+                  ⏰ Poll Has Expired
+                </h3>
+                <p className="text-orange-700 text-sm mb-3">
+                  This poll closed on {pollEndTime.toLocaleString()}. You can
+                  now draw the results.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={manualDrawResults}
+              disabled={drawingResults}
+              className="w-full bg-orange-600 text-white px-4 py-2.5 rounded-lg hover:bg-orange-700 font-medium disabled:opacity-50"
+            >
+              {drawingResults ? (
+                <span className="flex items-center justify-center">
+                  <svg
+                    className="animate-spin -ml-1 mr-2 h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                  Drawing Results...
+                </span>
+              ) : (
+                "🎲 Draw Results"
+              )}
+            </button>
+          </div>
+        )}
+
+        {/* Active Poll Timer */}
+        {isPollActive && (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex justify-center">
+            <div className="text-center">
+              <h3 className="font-semibold text-green-900 mb-2">Poll Active</h3>
+              <CountdownTimer targetDate={pollEndTime} size="md" />
+            </div>
+          </div>
+        )}
+
+        {/* Share Link Card */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <h3 className="font-semibold mb-2 text-blue-900 flex items-center space-x-2">
+            <ShareIcon /> Share with Employees
+          </h3>
+          <div className="flex flex-col space-y-2">
+            <input
+              type="text"
+              value={shareUrl}
+              readOnly
+              className="w-full px-3 py-2 bg-white border border-blue-300 rounded text-sm"
+            />
+            <div className="flex space-x-2">
+              <button
+                onClick={copyShareLink}
+                className="flex-1 bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 text-sm font-medium flex items-center justify-center"
+              >
+                <CopyIcon /> Copy
+              </button>
+              <Link
+                href={`/poll/${poll.share_link}`}
+                target="_blank"
+                className="flex-1 bg-green-600 text-white px-3 py-2 rounded hover:bg-green-700 text-sm font-medium text-center flex items-center justify-center"
+              >
+                <InfoIcon /> Preview
+              </Link>
+            </div>
+          </div>
+          {isPollExpired && (
+            <p className="text-orange-700 text-sm mt-2">
+              ⚠️ This poll has expired. The link will show a "Poll Closed"
+              message.
+            </p>
+          )}
+        </div>
+
+        {/* Mobile Tab Navigation */}
+        <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+          <div className="flex border-b">
+            <button
+              onClick={() => setActiveTab("overview")}
+              className={`flex-1 px-4 py-3 text-sm font-medium ${
+                activeTab === "overview"
+                  ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              <div className="flex items-center justify-center">
+                <OverviewIcon className="w-4 h-4 mr-2" />
+                Overview
+              </div>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("entries")}
+              className={`flex-1 px-4 py-3 text-sm font-medium ${
+                activeTab === "entries"
+                  ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              <div className="flex items-center justify-center">
+                <EntriesIcon className="w-4 h-4 mr-2" />
+                Entries ({entries.length})
+              </div>
+            </button>
+
+            {isPollCompleted && (
+              <button
+                onClick={() => setActiveTab("results")}
+                className={`flex-1 px-4 py-3 text-sm font-medium ${
+                  activeTab === "results"
+                    ? "bg-blue-50 text-blue-700 border-b-2 border-blue-700"
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                <div className="flex items-center justify-center">
+                  <ResultsIcon className="w-4 h-4 mr-2" />
+                  Results
+                </div>
+              </button>
+            )}
+          </div>
+
+          {/* Tab Content */}
+          <div className="p-4">
+            {activeTab === "overview" && (
+              <div className="space-y-4">
+                {/* Description */}
+                {poll.description && (
+                  <div>
+                    <h4 className="font-medium text-gray-900 mb-2">
+                      Description
+                    </h4>
+                    <p className="text-gray-600 text-sm">{poll.description}</p>
+                  </div>
+                )}
+
+                {/* Spot Configuration */}
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-3">
+                    Available Spots
+                  </h4>
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="bg-blue-50 rounded-lg p-3 flex justify-between items-center">
+                      <div>
+                        <div className="font-medium text-blue-900 flex items-center">
+                          <svg
+                            className="w-5 h-5 mr-2 text-blue-600"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"
+                            />
+                          </svg>
+                          Morning Shift
+                        </div>
+                        <div className="text-blue-700 text-sm">
+                          {entriesByType.am.length} entries
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xl font-bold text-blue-600">
+                          {poll.am_spots}
+                        </div>
+                        <div className="text-blue-600 text-xs">spots</div>
+                      </div>
+                    </div>
+
+                    <div className="bg-orange-50 rounded-lg p-3 flex justify-between items-center">
+                      <div>
+                        <div className="font-medium text-orange-900 flex items-center">
+                          <svg
+                            className="w-5 h-5 mr-2 text-orange-600"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
+                            />
+                          </svg>
+                          Afternoon Shift
+                        </div>
+                        <div className="text-orange-700 text-sm">
+                          {entriesByType.pm.length} entries
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xl font-bold text-orange-600">
+                          {poll.pm_spots}
+                        </div>
+                        <div className="text-orange-600 text-xs">spots</div>
+                      </div>
+                    </div>
+
+                    <div className="bg-purple-50 rounded-lg p-3 flex justify-between items-center">
+                      <div>
+                        <div className="font-medium text-purple-900 flex items-center">
+                          <svg
+                            className="w-5 h-5 mr-2 text-purple-600"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                            />
+                          </svg>
+                          Full Day
+                        </div>
+                        <div className="text-purple-700 text-sm">
+                          {entriesByType.all_day.length} entries
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xl font-bold text-purple-600">
+                          {poll.all_day_spots}
+                        </div>
+                        <div className="text-purple-600 text-xs">spots</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Poll Details */}
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-3">
+                    Poll Details
+                  </h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between py-2 border-b border-gray-100">
+                      <span className="text-gray-600">Created:</span>
+                      <span className="font-medium">
+                        {new Date(poll.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-gray-100">
+                      <span className="text-gray-600">Closes:</span>
+                      <div className="text-right">
+                        <div className="font-medium">
+                          {pollEndTime.toLocaleDateString()}
+                        </div>
+                        <div className="text-gray-500 text-xs">
+                          {pollEndTime.toLocaleTimeString()}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex justify-between py-2">
+                      <span className="text-gray-600">Total Entries:</span>
+                      <span className="font-medium">{entries.length}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "entries" && (
+              <div className="space-y-4">
+                {entries.length === 0 ? (
+                  <div className="text-center py-8">
+                    <div className="text-gray-400 text-4xl mb-2">📭</div>
+                    <p className="text-gray-500">No entries yet</p>
+                    <p className="text-gray-400 text-sm">
+                      {isPollActive
+                        ? "Share the poll link to start collecting entries"
+                        : "No employees participated"}
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    {poll.am_spots > 0 && (
+                      <div className="bg-blue-50 rounded-lg p-3">
+                        <h4 className="font-medium text-blue-900 flex items-center justify-start mb-2">
+                          <MorningIcon className="w-4 h-4 mr-2" />
+                          Morning Entries ({entriesByType.am.length})
+                        </h4>
+                        {entriesByType.am.length > 0 ? (
+                          <div className="space-y-1">
+                            {entriesByType.am.map((entry, index) => (
+                              <div
+                                key={entry.id}
+                                className="flex items-center justify-between bg-white rounded p-2"
+                              >
+                                <div className="flex items-center">
+                                  <span className="bg-blue-100 text-blue-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-2">
+                                    {index + 1}
+                                  </span>
+                                  <span className="text-sm">
+                                    {entry.users?.name}
+                                  </span>
+                                </div>
+                                {isPollCompleted &&
+                                  resultsByType.am.some(
+                                    (r) => r.user_id === entry.user_id
+                                  ) && (
+                                    <span className="text-green-600 font-bold">
+                                      🏆
+                                    </span>
+                                  )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-blue-700 text-sm italic">
+                            No entries
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {poll.pm_spots > 0 && (
+                      <div className="bg-orange-50 rounded-lg p-3">
+                        <h4 className="font-medium text-orange-900 flex items-center justify-start mb-2">
+                          <AfternoonIcon className="w-4 h-4 mr-2" /> Afternoon
+                          Entries ({entriesByType.pm.length})
+                        </h4>
+                        {entriesByType.pm.length > 0 ? (
+                          <div className="space-y-1">
+                            {entriesByType.pm.map((entry, index) => (
+                              <div
+                                key={entry.id}
+                                className="flex items-center justify-between bg-white rounded p-2"
+                              >
+                                <div className="flex items-center">
+                                  <span className="bg-orange-100 text-orange-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-2">
+                                    {index + 1}
+                                  </span>
+                                  <span className="text-sm">
+                                    {entry.users?.name}
+                                  </span>
+                                </div>
+                                {isPollCompleted &&
+                                  resultsByType.pm.some(
+                                    (r) => r.user_id === entry.user_id
+                                  ) && (
+                                    <span className="text-green-600 font-bold">
+                                      <TrophyIcon className="w-5 h-5" />
+                                    </span>
+                                  )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-orange-700 text-sm italic">
+                            No entries
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {poll.all_day_spots > 0 && (
+                      <div className="bg-purple-50 rounded-lg p-3">
+                        <h4 className="font-medium text-purple-900 mb-2 flex items-center justify-start">
+                          <FullDayIcon className="w-4 h-4 mr-2" />
+                          Full Day Entries ({entriesByType.all_day.length})
+                        </h4>
+                        {entriesByType.all_day.length > 0 ? (
+                          <div className="space-y-1">
+                            {entriesByType.all_day.map((entry, index) => (
+                              <div
+                                key={entry.id}
+                                className="flex items-center justify-between bg-white rounded p-2"
+                              >
+                                <div className="flex items-center">
+                                  <span className="bg-purple-100 text-purple-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-2">
+                                    {index + 1}
+                                  </span>
+                                  <span className="text-sm">
+                                    {entry.users?.name}
+                                  </span>
+                                </div>
+                                {isPollCompleted &&
+                                  resultsByType.all_day.some(
+                                    (r) => r.user_id === entry.user_id
+                                  ) && (
+                                    <span className="text-green-600 font-bold">
+                                      🏆
+                                    </span>
+                                  )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-purple-700 text-sm italic">
+                            No entries
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
+            {activeTab === "results" && isPollCompleted && (
+              <div className="space-y-4">
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+                  <h3 className="font-semibold text-green-800 mb-1 flex items-center justify-start">
+                    <TrophyIcon className="w-4 h-4 mr-2" /> Results
+                  </h3>
+                  <p className="text-green-700 text-sm">
+                    Results drawn on{" "}
+                    {new Date(
+                      poll.updated_at || poll.created_at
+                    ).toLocaleString()}
+                  </p>
+                </div>
+
+                {poll.am_spots > 0 && (
+                  <div className="bg-blue-50 rounded-lg p-3">
+                    <h4 className="font-medium text-blue-900 mb-2 flex items-center justify-start">
+                      <MorningIcon className="w-4 h-4 mr-2" /> Morning Winners (
+                      {resultsByType.am.length}/{poll.am_spots})
+                    </h4>
+                    {resultsByType.am.length > 0 ? (
+                      <div className="space-y-1">
+                        {resultsByType.am.map((result, index) => (
+                          <div
+                            key={result.id}
+                            className="flex items-center bg-white rounded p-2"
+                          >
+                            <span className="bg-green-100 text-green-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-2">
+                              {index + 1}
+                            </span>
+                            <span className="text-sm font-medium text-green-700">
+                              {result.users?.name}
+                            </span>
+                            <span className="ml-2">🎉</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-blue-700 text-sm italic">
+                        No winners drawn
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {poll.pm_spots > 0 && (
+                  <div className="bg-orange-50 rounded-lg p-3">
+                    <h4 className="font-medium text-orange-900 mb-2 flex items-center justify-start">
+                      <AfternoonIcon className="w-4 h-4 mr-2" /> (
+                      {resultsByType.pm.length}/{poll.pm_spots})
+                    </h4>
+                    {resultsByType.pm.length > 0 ? (
+                      <div className="space-y-1">
+                        {resultsByType.pm.map((result, index) => (
+                          <div
+                            key={result.id}
+                            className="flex items-center bg-white rounded p-2"
+                          >
+                            <span className="bg-green-100 text-green-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-2">
+                              {index + 1}
+                            </span>
+                            <span className="text-sm font-medium text-green-700">
+                              {result.users?.name}
+                            </span>
+                            <span className="ml-2">🎉</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-orange-700 text-sm italic">
+                        No winners drawn
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {poll.all_day_spots > 0 && (
+                  <div className="bg-purple-50 rounded-lg p-3">
+                    <h4 className="font-medium text-purple-900 mb-2 flex items-center justify-start">
+                      <FullDayIcon className="w-4 h-4 mr-2" /> (
+                      {resultsByType.all_day.length}/{poll.all_day_spots})
+                    </h4>
+                    {resultsByType.all_day.length > 0 ? (
+                      <div className="space-y-1">
+                        {resultsByType.all_day.map((result, index) => (
+                          <div
+                            key={result.id}
+                            className="flex items-center bg-white rounded p-2"
+                          >
+                            <span className="bg-green-100 text-green-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-2">
+                              {index + 1}
+                            </span>
+                            <span className="text-sm font-medium text-green-700">
+                              {result.users?.name}
+                            </span>
+                            <span className="ml-2">🎉</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-purple-700 text-sm italic">
+                        No winners drawn
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Summary */}
+                <div className="bg-gray-50 rounded-lg p-3 text-center">
+                  <div className="text-lg font-bold text-gray-900">
+                    {results.length} Total Winner
+                    {results.length !== 1 ? "s" : ""}
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    Out of {entries.length} participants
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Quick Actions - Mobile Optimized */}
+        <div className="bg-white rounded-lg shadow-sm border p-4">
+          <h3 className="font-medium text-gray-900 mb-3">Quick Actions</h3>
+          <div className="grid grid-cols-1 gap-3">
+            <Link
+              href={`/manager/dashboard`}
+              className="w-full bg-gray-600 text-white px-4 py-3 rounded-lg hover:bg-gray-700 font-medium text-center flex items-center justify-center"
+            >
+              <svg
+                className="w-4 h-4 mr-2"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z"
+                />
+              </svg>
+              Back to Dashboard
+            </Link>
+
+            <Link
+              href="/manager/create-poll"
+              className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 font-medium text-center flex items-center justify-center"
+            >
+              <svg
+                className="w-4 h-4 mr-2"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4v16m8-8H4"
+                />
+              </svg>
+              Create New Poll
+            </Link>
+
+            <Link
+              href="/manager/users"
+              className="w-full bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 font-medium text-center flex items-center justify-center"
+            >
+              <svg
+                className="w-4 h-4 mr-2"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"
+                />
+              </svg>
+              Manage Users
+            </Link>
+          </div>
+        </div>
+
+        {/* Desktop View Notice */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 lg:hidden">
+          <div className="flex items-start">
+            <svg
+              className="w-5 h-5 text-blue-500 mr-2 mt-0.5 flex-shrink-0"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <div>
+              <p className="text-blue-800 text-sm font-medium">💡 Pro Tip</p>
+              <p className="text-blue-700 text-sm">
+                For a more detailed view with additional features, try accessing
+                this page on a desktop or tablet.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Development Debug Info - Only show in development */}
+        {process.env.NODE_ENV === "development" && (
+          <div className="bg-gray-100 rounded-lg p-4">
+            <details>
+              <summary className="cursor-pointer font-medium text-gray-700 mb-2">
+                🔧 Debug Info (Development)
+              </summary>
+              <div className="text-xs text-gray-600 space-y-1">
+                <div>Poll ID: {poll.id}</div>
+                <div>Status: {pollStatus.status}</div>
+                <div>Results Drawn: {poll.results_drawn ? "Yes" : "No"}</div>
+                <div>Active: {poll.is_active ? "Yes" : "No"}</div>
+                <div>Entries Count: {entries.length}</div>
+                <div>Results Count: {results.length}</div>
+                <div>Can Draw: {canDrawResults ? "Yes" : "No"}</div>
+                <div>End Time: {pollEndTime.toISOString()}</div>
+                <div>Active Tab: {activeTab}</div>
+              </div>
+            </details>
+          </div>
+        )}
+      </div>
+
+      {/* Bottom Spacing for Mobile */}
+      <div className="h-8"></div>
     </div>
   );
 }

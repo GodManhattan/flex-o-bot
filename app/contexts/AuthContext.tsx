@@ -28,113 +28,100 @@ export const useAuth = () => {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [initialized, setInitialized] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    console.log("🔍 AuthProvider: Current pathname:", pathname);
+    let isMounted = true;
 
-    // Get initial session
-    const getInitialSession = async () => {
+    const initializeAuth = async () => {
       try {
+        console.log("🔐 Initializing auth...");
+
         const {
           data: { session },
           error,
         } = await supabase.auth.getSession();
 
-        console.log("🔍 AuthProvider: Initial session check", {
-          hasSession: !!session,
-          hasUser: !!session?.user,
-          error: error?.message,
-          pathname,
-        });
+        if (!isMounted) return;
 
         if (error) {
-          console.error("Error getting session:", error);
+          console.error("Auth initialization error:", error);
           setUser(null);
         } else {
+          console.log("🔐 Initial session:", !!session?.user);
           setUser(session?.user ?? null);
         }
       } catch (err) {
-        console.error("Session fetch error:", err);
-        setUser(null);
+        console.error("Auth initialization failed:", err);
+        if (isMounted) {
+          setUser(null);
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+          setInitialized(true);
+        }
       }
     };
 
-    getInitialSession();
+    initializeAuth();
 
-    // Listen for auth changes
+    return () => {
+      isMounted = false;
+    };
+  }, []); // Only run once on mount
+
+  useEffect(() => {
+    if (!initialized) return;
+
+    console.log("🔐 Setting up auth listener...");
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("🔍 Auth state changed:", {
-        event,
-        userId: session?.user?.id,
-        pathname,
-        hasSession: !!session,
-      });
+      console.log("🔐 Auth state changed:", event, !!session?.user);
 
       setUser(session?.user ?? null);
-      setLoading(false);
 
-      // ONLY handle navigation for specific auth events and routes
+      // Handle redirects based on auth state and current location
       if (event === "SIGNED_IN" && session) {
-        console.log("✅ User signed in, checking if should redirect...");
-        // Only redirect if user is on login/register pages
         if (pathname === "/manager/login" || pathname === "/manager/register") {
-          console.log("🔄 Redirecting from login/register to dashboard");
+          console.log("🔄 Redirecting authenticated user to dashboard");
           router.replace("/manager/dashboard");
-        } else {
-          console.log(
-            "👍 User signed in but staying on current page:",
-            pathname
-          );
         }
       } else if (event === "SIGNED_OUT") {
-        console.log("❌ User signed out, checking if should redirect...");
-        // Only redirect if user was on a protected manager route
         if (
           pathname?.startsWith("/manager/") &&
           pathname !== "/manager/login" &&
           pathname !== "/manager/register"
         ) {
-          console.log("🔄 Redirecting from protected route to home");
+          console.log("🔄 Redirecting signed out user to home");
           router.replace("/");
-        } else {
-          console.log(
-            "👍 User signed out but staying on current page:",
-            pathname
-          );
         }
-      } else {
-        console.log("👀 Auth state change but no redirect needed:", event);
       }
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [router, pathname]);
+  }, [initialized, router, pathname]);
 
   const signOut = async () => {
     try {
-      console.log("🚪 Signing out user...");
-      setLoading(true);
+      console.log("🚪 Signing out...");
       await supabase.auth.signOut();
-      console.log("✅ Sign out successful, redirecting to home");
       router.replace("/");
     } catch (error) {
       console.error("Sign out error:", error);
-    } finally {
-      setLoading(false);
     }
   };
 
-  console.log("🔍 AuthProvider render:", {
+  console.log("🔐 AuthProvider render:", {
     hasUser: !!user,
     loading,
+    initialized,
     pathname,
   });
 
