@@ -98,7 +98,7 @@ function RegisterContent() {
             Create Manager Account
           </h2>
           <p className="mt-2 text-sm text-gray-900">
-            Set up your FlexSpot manager account
+            Set up your Flex-O-Bot manager account
           </p>
         </div>
 

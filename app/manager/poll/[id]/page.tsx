@@ -423,7 +423,7 @@ export default function PollDetailsPage() {
               <p className="text-orange-700 mb-4">
                 This poll closed on {pollEndTime.toLocaleString()}.
                 {canDrawResults
-                  ? " You can now draw the lottery results."
+                  ? " You can now draw the results."
                   : " Results have already been drawn."}
               </p>
             </div>
@@ -459,7 +459,7 @@ export default function PollDetailsPage() {
                     Drawing Results...
                   </span>
                 ) : (
-                  "🎲 Draw Lottery Results"
+                  "🎲 Draw Results"
                 )}
               </button>
             )}
@@ -580,7 +580,7 @@ export default function PollDetailsPage() {
         <div className="bg-white rounded-lg shadow-md mb-8">
           <div className="p-6 border-b bg-gradient-to-r from-green-50 to-blue-50">
             <h3 className="text-xl font-semibold text-green-800 flex items-center">
-              🏆 Lottery Results
+              🏆 Results
             </h3>
             <p className="text-green-700 text-sm mt-1">
               Results drawn on{" "}

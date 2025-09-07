@@ -806,7 +806,7 @@ export default function PollParticipationPage() {
               {resultsDrawn && results.length > 0 && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                   <h3 className="font-semibold mb-3 text-green-800 flex items-center">
-                    Lottery Results
+                    Results
                     <span className="ml-2 text-xs bg-green-200 px-2 py-1 rounded">
                       {results.length} winner{results.length !== 1 ? "s" : ""}
                     </span>
@@ -934,7 +934,7 @@ export default function PollParticipationPage() {
                   <p className="text-sm text-blue-800">
                     Keep this page open to see live updates and results when
                     they're drawn!
-                    {pollEnded && " The lottery will be drawn shortly."}
+                    {pollEnded && " The  will be drawn shortly."}
                   </p>
                 </div>
               )}

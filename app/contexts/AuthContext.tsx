@@ -1,4 +1,3 @@
-// File: app/contexts/AuthContext.tsx
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
@@ -33,6 +32,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
+    console.log("🔍 AuthProvider: Current pathname:", pathname);
+
     // Get initial session
     const getInitialSession = async () => {
       try {
@@ -40,6 +41,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           data: { session },
           error,
         } = await supabase.auth.getSession();
+
+        console.log("🔍 AuthProvider: Initial session check", {
+          hasSession: !!session,
+          hasUser: !!session?.user,
+          error: error?.message,
+          pathname,
+        });
+
         if (error) {
           console.error("Error getting session:", error);
           setUser(null);
@@ -60,26 +69,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("Auth state changed:", event, session?.user?.id);
+      console.log("🔍 Auth state changed:", {
+        event,
+        userId: session?.user?.id,
+        pathname,
+        hasSession: !!session,
+      });
 
       setUser(session?.user ?? null);
       setLoading(false);
 
-      // Handle navigation based on auth state
+      // ONLY handle navigation for specific auth events and routes
       if (event === "SIGNED_IN" && session) {
-        // If user signs in from login/register page, go to dashboard
+        console.log("✅ User signed in, checking if should redirect...");
+        // Only redirect if user is on login/register pages
         if (pathname === "/manager/login" || pathname === "/manager/register") {
+          console.log("🔄 Redirecting from login/register to dashboard");
           router.replace("/manager/dashboard");
+        } else {
+          console.log(
+            "👍 User signed in but staying on current page:",
+            pathname
+          );
         }
-      } else if (event === "SIGNED_OUT" || !session) {
-        // If user signs out or session is invalid, go to login
+      } else if (event === "SIGNED_OUT") {
+        console.log("❌ User signed out, checking if should redirect...");
+        // Only redirect if user was on a protected manager route
         if (
           pathname?.startsWith("/manager/") &&
           pathname !== "/manager/login" &&
           pathname !== "/manager/register"
         ) {
-          router.replace("/manager/login");
+          console.log("🔄 Redirecting from protected route to home");
+          router.replace("/");
+        } else {
+          console.log(
+            "👍 User signed out but staying on current page:",
+            pathname
+          );
         }
+      } else {
+        console.log("👀 Auth state change but no redirect needed:", event);
       }
     });
 
@@ -90,8 +120,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
+      console.log("🚪 Signing out user...");
       setLoading(true);
       await supabase.auth.signOut();
+      console.log("✅ Sign out successful, redirecting to home");
       router.replace("/");
     } catch (error) {
       console.error("Sign out error:", error);
@@ -99,6 +131,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     }
   };
+
+  console.log("🔍 AuthProvider render:", {
+    hasUser: !!user,
+    loading,
+    pathname,
+  });
 
   return (
     <AuthContext.Provider value={{ user, loading, signOut }}>

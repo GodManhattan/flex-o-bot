@@ -56,7 +56,7 @@ function LoginContent() {
           </div>
           <h2 className="text-3xl font-bold text-gray-900">Manager Login</h2>
           <p className="mt-2 text-sm text-gray-900">
-            Sign in to your FlexSpot manager account
+            Sign in to your Flex-O-Bot manager account
           </p>
         </div>
 

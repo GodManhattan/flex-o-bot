@@ -1,4 +1,3 @@
-// File: app/components/RouteGuard.tsx
 "use client";
 
 import { useEffect } from "react";
@@ -20,17 +19,47 @@ export function RouteGuard({
   const router = useRouter();
   const pathname = usePathname();
 
+  console.log("🛡️ RouteGuard:", {
+    pathname,
+    requireAuth,
+    hasUser: !!user,
+    loading,
+    redirectTo,
+  });
+
   useEffect(() => {
-    if (loading) return;
+    if (loading) {
+      console.log("⏳ RouteGuard: Still loading, waiting...");
+      return;
+    }
+
+    console.log("🛡️ RouteGuard: Checking protection...", {
+      requireAuth,
+      hasUser: !!user,
+      pathname,
+    });
 
     if (requireAuth && !user) {
-      // User needs to be authenticated but isn't
+      console.log(
+        "🔒 RouteGuard: Auth required but no user, redirecting to:",
+        redirectTo
+      );
       router.replace(redirectTo);
     } else if (!requireAuth && user) {
-      // User is authenticated but shouldn't be on this page (e.g., login page)
+      console.log(
+        "🔓 RouteGuard: User authenticated but shouldn't be on this page"
+      );
+      // Only redirect from login/register pages
       if (pathname === "/manager/login" || pathname === "/manager/register") {
+        console.log(
+          "🔄 RouteGuard: Redirecting authenticated user to dashboard"
+        );
         router.replace("/manager/dashboard");
+      } else {
+        console.log("👍 RouteGuard: User authenticated but page is allowed");
       }
+    } else {
+      console.log("✅ RouteGuard: All good, showing content");
     }
   }, [user, loading, requireAuth, router, redirectTo, pathname]);
 
@@ -46,6 +75,7 @@ export function RouteGuard({
   }
 
   if (requireAuth && !user) {
+    console.log("🚫 RouteGuard: Blocking access, will redirect");
     return null; // Will redirect
   }
 
@@ -54,8 +84,12 @@ export function RouteGuard({
     user &&
     (pathname === "/manager/login" || pathname === "/manager/register")
   ) {
+    console.log(
+      "🚫 RouteGuard: Blocking access to login/register for authenticated user"
+    );
     return null; // Will redirect
   }
 
+  console.log("✅ RouteGuard: Rendering children");
   return <>{children}</>;
 }
