@@ -4,9 +4,11 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/app/lib/supabase";
+import { useAuth } from "@/app/contexts/AuthContext";
 import { signOut } from "@/app/utils/auth";
 import { useAutoDrawResults } from "@/app/hooks/useAutoDrawResults";
 import { CountdownTimer } from "@/app/components/CountdownTimer";
+import { UserIcon } from "@/app/components/Icons";
 
 interface Poll {
   id: string;
@@ -34,66 +36,43 @@ export default function DashboardPage() {
   const [polls, setPolls] = useState<Poll[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const [authChecking, setAuthChecking] = useState(true);
   const [drawingResults, setDrawingResults] = useState<string | null>(null);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [error, setError] = useState("");
   const router = useRouter();
-
-  const checkAuth = useCallback(async () => {
-    try {
-      const {
-        data: { user },
-        error,
-      } = await supabase.auth.getUser();
-
-      console.log("Auth check result:", { user: user?.id, error });
-
-      if (error || !user) {
-        console.log("No authenticated user, redirecting to login");
-        router.push("/manager/login");
-        return false;
-      }
-
-      return true;
-    } catch (err) {
-      console.error("Auth check error:", err);
-      router.push("/manager/login");
-      return false;
-    } finally {
-      setAuthChecking(false);
-    }
-  }, [router]);
+  const { user: authUser, loading: authLoading } = useAuth();
 
   const fetchData = useCallback(async () => {
+    if (!authUser) {
+      console.log("📊 No authenticated user, skipping data fetch");
+      setLoading(false);
+      return;
+    }
+
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        console.log("No user found during data fetch");
-        return;
-      }
-
-      console.log("Fetching data for user:", user.id);
+      console.log("📊 Fetching dashboard data for user:", authUser.id);
+      setError("");
 
       const [pollsRes, usersRes] = await Promise.all([
         supabase
           .from("polls")
           .select("*")
-          .eq("manager_id", user.id)
+          .eq("manager_id", authUser.id)
           .order("created_at", { ascending: false }),
         supabase.from("users").select("*").order("name"),
       ]);
 
-      console.log("Fetch results:", {
+      console.log("📊 Fetch results:", {
         pollsError: pollsRes.error,
         pollsCount: pollsRes.data?.length,
         usersError: usersRes.error,
         usersCount: usersRes.data?.length,
       });
 
-      if (pollsRes.data) {
+      if (pollsRes.error) {
+        console.error("❌ Error fetching polls:", pollsRes.error);
+        setError("Failed to load polls: " + pollsRes.error.message);
+      } else if (pollsRes.data) {
         const updatedPolls = pollsRes.data.map((poll) => {
           const now = new Date();
           const endTime = new Date(poll.open_until);
@@ -108,39 +87,47 @@ export default function DashboardPage() {
 
         setPolls(updatedPolls);
       }
-      if (usersRes.data) setUsers(usersRes.data);
-    } catch (err) {
-      console.error("Error fetching data:", err);
+
+      if (usersRes.error) {
+        console.error("❌ Error fetching users:", usersRes.error);
+        setError("Failed to load users: " + usersRes.error.message);
+      } else if (usersRes.data) {
+        setUsers(usersRes.data);
+      }
+    } catch (err: any) {
+      console.error("❌ Error fetching data:", err);
+      setError(
+        "Failed to load dashboard data: " + (err.message || "Unknown error")
+      );
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [authUser]);
 
   useAutoDrawResults(polls, fetchData);
 
+  // Initial data fetch - only when auth is ready
   useEffect(() => {
-    const initializeDashboard = async () => {
-      const isAuthenticated = await checkAuth();
-      if (isAuthenticated) {
-        await fetchData();
-      }
-    };
+    if (authLoading) {
+      console.log("⏳ Auth still loading, waiting...");
+      return;
+    }
 
-    initializeDashboard();
+    if (!authUser) {
+      console.log("❌ No authenticated user");
+      setLoading(false);
+      return;
+    }
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("Auth state changed:", event, session?.user?.id);
+    console.log("✅ Auth ready, fetching dashboard data");
+    fetchData();
+  }, [authUser, authLoading, fetchData]);
 
-      if (event === "SIGNED_OUT" || !session) {
-        console.log("User signed out, redirecting to login");
-        router.push("/manager/login");
-      } else if (event === "SIGNED_IN" && session) {
-        console.log("User signed in, fetching data");
-        await fetchData();
-      }
-    });
+  // Set up real-time subscriptions only when we have auth user
+  useEffect(() => {
+    if (!authUser) return;
+
+    console.log("📡 Setting up real-time subscriptions");
 
     const pollsSubscription = supabase
       .channel("polls_changes")
@@ -148,17 +135,17 @@ export default function DashboardPage() {
         "postgres_changes",
         { event: "*", schema: "public", table: "polls" },
         (payload) => {
-          console.log("Poll updated:", payload);
+          console.log("📡 Poll updated:", payload);
           fetchData();
         }
       )
       .subscribe();
 
     return () => {
-      subscription?.unsubscribe();
+      console.log("📡 Cleaning up subscriptions");
       supabase.removeChannel(pollsSubscription);
     };
-  }, [checkAuth, fetchData, router]);
+  }, [authUser, fetchData]);
 
   const handleSignOut = async () => {
     try {
@@ -167,6 +154,7 @@ export default function DashboardPage() {
       router.push("/");
     } catch (error) {
       console.error("Sign out error:", error);
+      setLoading(false);
     }
   };
 
@@ -180,14 +168,14 @@ export default function DashboardPage() {
 
       if (error) {
         console.error("Error drawing results:", error);
-        alert(`Error drawing results: ${error.message}`);
+        setError(`Error drawing results: ${error.message}`);
       } else {
         console.log("Results drawn successfully");
         fetchData();
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Unexpected error:", err);
-      alert("An unexpected error occurred while drawing results.");
+      setError("An unexpected error occurred while drawing results.");
     } finally {
       setDrawingResults(null);
     }
@@ -221,23 +209,28 @@ export default function DashboardPage() {
     }
   };
 
-  if (authChecking) {
+  // Show loading when auth is loading OR when fetching data
+  if (authLoading || (loading && authUser)) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Checking authentication...</p>
+          <p className="text-gray-600">
+            {authLoading
+              ? "Checking authentication..."
+              : "Loading dashboard..."}
+          </p>
         </div>
       </div>
     );
   }
 
-  if (loading) {
+  // If no auth user after loading is done, let the RouteGuard handle it
+  if (!authLoading && !authUser) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading dashboard...</p>
+          <p className="text-gray-600">Authentication required</p>
         </div>
       </div>
     );
@@ -245,6 +238,40 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Error Alert */}
+      {error && (
+        <div className="bg-red-50 border-b border-red-200 px-4 py-3">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <div className="flex items-center">
+              <svg
+                className="w-5 h-5 text-red-400 mr-2"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              <span className="text-red-800 text-sm">{error}</span>
+            </div>
+            <button
+              onClick={() => setError("")}
+              className="text-red-400 hover:text-red-600"
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path
+                  fillRule="evenodd"
+                  d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Mobile Header */}
       <div className="bg-white shadow-sm border-b lg:hidden">
         <div className="px-4 py-3">
@@ -278,19 +305,7 @@ export default function DashboardPage() {
                 className="flex items-center w-full text-left px-3 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700"
                 onClick={() => setShowMobileMenu(false)}
               >
-                <svg
-                  className="w-4 h-4 mr-2"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"
-                  />
-                </svg>
+                <UserIcon className="w-4 h-4 mr-2" />
                 Manage Users
               </Link>
               <Link
@@ -349,19 +364,7 @@ export default function DashboardPage() {
                 href="/manager/users"
                 className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-sm sm:text-base flex items-center gap-2"
               >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"
-                  />
-                </svg>
+                <UserIcon className="w-4 h-4" />
                 Manage Users
               </Link>
               <Link
@@ -407,7 +410,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Main Content - Full Width for Polls */}
+      {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
         {/* Mobile-Optimized Header and Stats */}
         <div className="space-y-4 mb-6">
@@ -584,63 +587,6 @@ export default function DashboardPage() {
               </button>
             </div>
           </div>
-
-          {/* Mobile Status Summary - Professional Design */}
-          {/* {polls.length > 0 && (
-            <div className="flex sm:hidden bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-3 text-sm border">
-              <div className="flex items-center gap-4 text-center w-full justify-around">
-                {polls.filter((p) => getPollStatus(p).status === "active")
-                  .length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    <span className="text-green-700 font-medium">
-                      {
-                        polls.filter(
-                          (p) => getPollStatus(p).status === "active"
-                        ).length
-                      }{" "}
-                      Active
-                    </span>
-                  </div>
-                )}
-
-                {polls.filter(
-                  (p) =>
-                    getPollStatus(p).status === "expired" &&
-                    getPollStatus(p).canDraw
-                ).length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                    <span className="text-orange-700 font-medium">
-                      {
-                        polls.filter(
-                          (p) =>
-                            getPollStatus(p).status === "expired" &&
-                            getPollStatus(p).canDraw
-                        ).length
-                      }{" "}
-                      Pending
-                    </span>
-                  </div>
-                )}
-
-                {polls.filter((p) => getPollStatus(p).status === "completed")
-                  .length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
-                    <span className="text-gray-700 font-medium">
-                      {
-                        polls.filter(
-                          (p) => getPollStatus(p).status === "completed"
-                        ).length
-                      }{" "}
-                      Complete
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )} */}
         </div>
 
         {/* Polls Section - Full Width Grid */}
@@ -910,6 +856,41 @@ export default function DashboardPage() {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* Development Debug Info */}
+        {process.env.NODE_ENV === "development" && (
+          <div className="mt-6 bg-gray-100 rounded-lg p-4">
+            <details>
+              <summary className="cursor-pointer font-medium text-gray-700 mb-2">
+                🔧 Dashboard Debug Info (Development)
+              </summary>
+              <div className="text-xs text-gray-600 space-y-1">
+                <div>Auth User: {authUser?.id?.slice(0, 8) || "None"}</div>
+                <div>Auth Loading: {authLoading ? "Yes" : "No"}</div>
+                <div>Page Loading: {loading ? "Yes" : "No"}</div>
+                <div>Polls Count: {polls.length}</div>
+                <div>Users Count: {users.length}</div>
+                <div>Drawing Results: {drawingResults || "None"}</div>
+                <div>Show Mobile Menu: {showMobileMenu ? "Yes" : "No"}</div>
+                <div>Current Error: {error || "None"}</div>
+                <div>
+                  Active Polls:{" "}
+                  {
+                    polls.filter((p) => getPollStatus(p).status === "active")
+                      .length
+                  }
+                </div>
+                <div>
+                  Completed Polls:{" "}
+                  {
+                    polls.filter((p) => getPollStatus(p).status === "completed")
+                      .length
+                  }
+                </div>
+              </div>
+            </details>
           </div>
         )}
       </div>

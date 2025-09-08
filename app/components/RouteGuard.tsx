@@ -19,12 +19,20 @@ export function RouteGuard({
   const router = useRouter();
   const pathname = usePathname();
   const [shouldRender, setShouldRender] = useState(false);
+  const [isCheckingAccess, setIsCheckingAccess] = useState(true);
+
+  useEffect(() => {
+    // Reset state when pathname changes
+    setShouldRender(false);
+    setIsCheckingAccess(true);
+  }, [pathname]);
 
   useEffect(() => {
     // Don't do anything while auth is still loading
     if (loading) {
       console.log("⏳ RouteGuard: Auth loading, waiting...");
       setShouldRender(false);
+      setIsCheckingAccess(true);
       return;
     }
 
@@ -34,14 +42,14 @@ export function RouteGuard({
       hasUser: !!user,
     });
 
-    // Check if access should be granted
+    // Determine if access should be granted
     const shouldAllowAccess = () => {
       if (requireAuth) {
         // Protected route - user must be authenticated
         return !!user;
       } else {
-        // Public route - always allow access
-        // But we might redirect authenticated users away from login/register
+        // Public route - always allow access initially
+        // The AuthContext will handle redirects for authenticated users
         return true;
       }
     };
@@ -51,35 +59,29 @@ export function RouteGuard({
     if (!hasAccess) {
       console.log("🔒 RouteGuard: Access denied, redirecting to:", redirectTo);
       setShouldRender(false);
+      setIsCheckingAccess(false);
       router.replace(redirectTo);
       return;
     }
 
-    // Special case: redirect authenticated users away from login/register
-    if (
-      !requireAuth &&
-      user &&
-      (pathname === "/manager/login" || pathname === "/manager/register")
-    ) {
-      console.log("🔄 RouteGuard: Redirecting authenticated user to dashboard");
-      setShouldRender(false);
-      router.replace("/manager/dashboard");
-      return;
-    }
-
-    // All checks passed - render the content
+    // Access granted - render the content
     console.log("✅ RouteGuard: Access granted");
     setShouldRender(true);
+    setIsCheckingAccess(false);
   }, [user, loading, requireAuth, pathname, router, redirectTo]);
 
-  // Show loading while auth is loading or while we're processing
-  if (loading || !shouldRender) {
+  // Show loading while auth is loading or while we're checking access
+  if (loading || isCheckingAccess || !shouldRender) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600">
-            {loading ? "Checking authentication..." : "Loading..."}
+            {loading
+              ? "Checking authentication..."
+              : isCheckingAccess
+              ? "Verifying access..."
+              : "Loading..."}
           </p>
         </div>
       </div>

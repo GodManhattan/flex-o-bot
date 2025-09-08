@@ -10,6 +10,7 @@ import { ErrorAlert } from "@/app/components/ErrorAlert";
 import {
   AfternoonIcon,
   CopyIcon,
+  DashboardIcon,
   EntriesIcon,
   FullDayIcon,
   InfoIcon,
@@ -18,6 +19,7 @@ import {
   ResultsIcon,
   ShareIcon,
   TrophyIcon,
+  UserIcon,
 } from "@/app/components/Icons";
 
 interface Poll {
@@ -1089,7 +1091,7 @@ export default function PollDetailsPage() {
               href={`/manager/dashboard`}
               className="w-full bg-gray-600 text-white px-4 py-3 rounded-lg hover:bg-gray-700 font-medium text-center flex items-center justify-center"
             >
-              <svg
+              {/* <svg
                 className="w-4 h-4 mr-2"
                 fill="none"
                 stroke="currentColor"
@@ -1101,7 +1103,8 @@ export default function PollDetailsPage() {
                   strokeWidth={2}
                   d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z"
                 />
-              </svg>
+              </svg> */}
+              <DashboardIcon className="w-4 h-4 mr-2" />
               Back to Dashboard
             </Link>
 
@@ -1129,7 +1132,7 @@ export default function PollDetailsPage() {
               href="/manager/users"
               className="w-full bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 font-medium text-center flex items-center justify-center"
             >
-              <svg
+              {/* <svg
                 className="w-4 h-4 mr-2"
                 fill="none"
                 stroke="currentColor"
@@ -1141,7 +1144,8 @@ export default function PollDetailsPage() {
                   strokeWidth={2}
                   d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"
                 />
-              </svg>
+              </svg> */}
+              <UserIcon className="w-4 h-4 mr-2" />
               Manage Users
             </Link>
           </div>

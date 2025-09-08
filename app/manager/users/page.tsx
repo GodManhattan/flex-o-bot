@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Papa from "papaparse";
 import { supabase } from "@/app/lib/supabase";
+import { useAuth } from "@/app/contexts/AuthContext";
 import { User } from "@/app/types";
 
 export default function UsersPage() {
@@ -19,36 +20,50 @@ export default function UsersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const router = useRouter();
+  const { user: authUser, loading: authLoading } = useAuth();
 
-  useEffect(() => {
-    checkAuth();
-    fetchUsers();
-  }, []);
-
-  const checkAuth = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      router.push("/manager/login");
-    }
-  };
-
+  // Fetch users data
   const fetchUsers = async () => {
     try {
+      console.log("👥 Fetching users...");
+      setError(""); // Clear any previous errors
+
       const { data, error } = await supabase
         .from("users")
         .select("*")
         .order("name");
-      if (error) throw error;
+
+      if (error) {
+        console.error("❌ Error fetching users:", error);
+        throw error;
+      }
+
+      console.log("✅ Users fetched successfully:", data?.length);
       if (data) setUsers(data);
-    } catch (err) {
-      setError("Failed to load users");
-      console.error("Error fetching users:", err);
+    } catch (err: any) {
+      console.error("❌ Failed to load users:", err);
+      setError("Failed to load users: " + (err.message || "Unknown error"));
     } finally {
       setLoading(false);
     }
   };
+
+  // Initial data fetch - only run when auth is ready and user is available
+  useEffect(() => {
+    if (authLoading) {
+      console.log("⏳ Auth still loading, waiting...");
+      return;
+    }
+
+    if (!authUser) {
+      console.log("❌ No authenticated user");
+      setLoading(false);
+      return;
+    }
+
+    console.log("✅ Auth ready, fetching users for:", authUser.id);
+    fetchUsers();
+  }, [authUser, authLoading]);
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -190,7 +205,8 @@ export default function UsersPage() {
       user.pin.includes(searchTerm)
   );
 
-  if (loading) {
+  // Show loading only when auth is loading OR when we're fetching users
+  if (authLoading || (loading && authUser)) {
     return (
       <div className="min-h-screen bg-gray-50">
         {/* Mobile Header Skeleton */}
@@ -207,6 +223,17 @@ export default function UsersPage() {
             <div className="bg-white rounded-lg p-4 h-32"></div>
             <div className="bg-white rounded-lg p-4 h-64"></div>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // If no auth user after loading is done, let the RouteGuard handle it
+  if (!authLoading && !authUser) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-600">Authentication required</p>
         </div>
       </div>
     );
@@ -1013,14 +1040,18 @@ export default function UsersPage() {
                 🔧 Debug Info (Development)
               </summary>
               <div className="text-xs text-gray-600 space-y-1">
+                <div>Auth User: {authUser?.id?.slice(0, 8) || "None"}</div>
+                <div>Auth Loading: {authLoading ? "Yes" : "No"}</div>
+                <div>Page Loading: {loading ? "Yes" : "No"}</div>
                 <div>Total Users: {users.length}</div>
                 <div>Filtered Users: {filteredUsers.length}</div>
                 <div>Search Term: "{searchTerm}"</div>
                 <div>Show Add Form: {showAddForm ? "Yes" : "No"}</div>
                 <div>Show Bulk Upload: {showBulkUpload ? "Yes" : "No"}</div>
                 <div>Delete Confirm: {deleteConfirm || "None"}</div>
-                <div>Loading: {loading ? "Yes" : "No"}</div>
                 <div>Uploading: {uploading ? "Yes" : "No"}</div>
+                <div>Current Error: {error || "None"}</div>
+                <div>Current Success: {success || "None"}</div>
               </div>
             </details>
           </div>
