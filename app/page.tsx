@@ -158,7 +158,7 @@ export default function HomePage() {
         </div>
 
         {/* Problem & Solution */}
-        <div className="py-8 sm:py-16 bg-white rounded-2xl shadow-sm mb-8 sm:mb-16 mx-4 sm:mx-0">
+        {/* <div className="py-8 sm:py-16 bg-white rounded-2xl shadow-sm mb-8 sm:mb-16 mx-4 sm:mx-0">
           <div className="max-w-5xl mx-auto px-4 sm:px-8">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
               <div>
@@ -338,7 +338,7 @@ export default function HomePage() {
               </div>
             </div>
           </div>
-        </div>
+        </div> */}
 
         {/* Key Features */}
         <div className="py-8 sm:py-16 px-4 sm:px-0">
@@ -366,9 +366,8 @@ export default function HomePage() {
                 Smart Algorithm
               </h3>
               <p className="text-gray-600 leading-relaxed text-sm sm:text-base">
-                Random selection ensures fairness. No more favoritism or timing
-                advantages - everyone gets an equal shot at their preferred flex
-                spots.
+                Random selection ensures fairness. No more timing advantages -
+                everyone gets an equal shot at their preferred flex spots.
               </p>
             </div>
 
