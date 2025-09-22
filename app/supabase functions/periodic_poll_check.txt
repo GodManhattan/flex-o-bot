@@ -1,0 +1,4 @@
+
+BEGIN
+    PERFORM check_and_draw_expired_polls();
+END;

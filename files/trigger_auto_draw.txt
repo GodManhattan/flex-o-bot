@@ -1,0 +1,23 @@
+
+BEGIN
+    -- Only process if poll just became eligible for drawing
+    IF NEW.open_until <= NOW() 
+       AND NEW.is_active = true 
+       AND NEW.results_drawn = false 
+       AND (OLD.open_until > NOW() OR OLD.results_drawn = true OR OLD.is_active = false) THEN
+        
+        -- Add small delay to prevent race conditions
+        PERFORM pg_sleep(0.5);
+        
+        -- Draw results with error handling
+        BEGIN
+            PERFORM draw_poll_results(NEW.id);
+            RAISE NOTICE 'Trigger auto-drew results for poll: %', NEW.id;
+        EXCEPTION WHEN OTHERS THEN
+            RAISE WARNING 'Trigger failed to draw results for poll %: %', NEW.id, SQLERRM;
+            -- Don't fail the entire transaction, just log the error
+        END;
+    END IF;
+    
+    RETURN NEW;
+END;

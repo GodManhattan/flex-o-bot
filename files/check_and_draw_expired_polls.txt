@@ -1,0 +1,27 @@
+
+DECLARE
+    expired_poll RECORD;
+BEGIN
+    -- Find all polls that have expired but results not drawn
+    FOR expired_poll IN 
+        SELECT id, title 
+        FROM polls 
+        WHERE open_until <= NOW() 
+        AND is_active = true 
+        AND results_drawn = false
+    LOOP
+        BEGIN
+            -- Log the poll we're about to draw
+            RAISE NOTICE 'Auto-drawing results for expired poll: % (ID: %)', expired_poll.title, expired_poll.id;
+            
+            -- Call the draw function
+            PERFORM draw_poll_results(expired_poll.id);
+            
+            RAISE NOTICE 'Successfully drew results for poll: %', expired_poll.id;
+            
+        EXCEPTION WHEN OTHERS THEN
+            -- Log error but continue with other polls
+            RAISE WARNING 'Failed to draw results for poll %: %', expired_poll.id, SQLERRM;
+        END;
+    END LOOP;
+END;
