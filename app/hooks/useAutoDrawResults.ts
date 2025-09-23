@@ -17,18 +17,18 @@ export const useAutoDrawResults = (polls: Poll[], onPollUpdate: () => void) => {
 
       for (const poll of polls) {
         const endTime = new Date(poll.open_until);
-        const hasExpired = endTime <= now;
+        const hasEnded = endTime <= now;
 
-        // If poll has expired but results haven't been drawn
-        if (hasExpired && poll.is_active && !poll.results_drawn) {
+        // If poll has ended but results haven't been drawn
+        if (hasEnded && poll.is_active && !poll.results_drawn) {
           console.log(
-            `Auto-processing expired ${poll.selection_type} poll: ${poll.id}`
+            `Auto-processing ended ${poll.selection_type} poll: ${poll.id}`
           );
 
           try {
             if (poll.selection_type === "first_come_first_serve") {
               // For FCFS polls, results already exist - just mark as completed
-              console.log("FCFS poll expired - marking as completed");
+              console.log("FCFS poll ended - marking as completed");
 
               const { error: updateError } = await supabase
                 .from("polls")
@@ -42,11 +42,12 @@ export const useAutoDrawResults = (polls: Poll[], onPollUpdate: () => void) => {
               if (updateError) {
                 console.error("Error updating FCFS poll status:", updateError);
               } else {
-                console.log("FCFS poll marked as completed successfully");
+                console.log("FCFS poll marked as completed");
+                onPollUpdate();
               }
             } else {
               // For random polls, call the draw function
-              console.log("Random poll expired - drawing results");
+              console.log("Random poll ended - drawing results");
 
               const { error: drawError } = await supabase.rpc(
                 "draw_poll_results",
@@ -56,50 +57,21 @@ export const useAutoDrawResults = (polls: Poll[], onPollUpdate: () => void) => {
               );
 
               if (drawError) {
-                console.error(
-                  "Error auto-drawing random poll results:",
-                  drawError
-                );
+                console.error("Error drawing results:", drawError);
               } else {
-                console.log("Random poll results auto-drawn successfully");
-
-                // Update the poll to mark as inactive and results drawn
-                const { error: updateError } = await supabase
-                  .from("polls")
-                  .update({
-                    is_active: false,
-                    results_drawn: true,
-                    updated_at: new Date().toISOString(),
-                  })
-                  .eq("id", poll.id);
-
-                if (updateError) {
-                  console.error(
-                    "Error updating random poll status:",
-                    updateError
-                  );
-                }
+                console.log("Results drawn successfully");
+                onPollUpdate();
               }
             }
-
-            // Trigger refresh regardless of poll type
-            onPollUpdate();
           } catch (err) {
-            console.error(
-              `Unexpected error processing expired ${poll.selection_type} poll:`,
-              err
-            );
+            console.error("Error processing ended poll:", err);
           }
         }
       }
     };
 
-    // Check immediately
     checkAndDrawExpiredPolls();
-
-    // Set up interval to check every 30 seconds
     const interval = setInterval(checkAndDrawExpiredPolls, 30000);
-
     return () => clearInterval(interval);
   }, [polls, onPollUpdate]);
 };

@@ -463,13 +463,20 @@ export default function PollParticipationPage() {
     // Check if user already entered
     const { data: existingEntry } = await supabase
       .from("poll_entries")
-      .select("id")
+      .select("spot_type")
       .eq("poll_id", poll?.id)
       .eq("user_id", selectedUser)
       .single();
 
     if (existingEntry) {
-      setError("You have already entered this poll");
+      // User already entered - let them rejoin and see their status
+      console.log("User already entered, allowing them to see their entry");
+      setSpotType(existingEntry.spot_type);
+      setSuccess(true);
+      setStep(3); // Go directly to results/status page
+
+      // Fetch their entry and results
+      await Promise.all([fetchEntries(), fetchResults()]);
       return;
     }
 
@@ -493,97 +500,44 @@ export default function PollParticipationPage() {
     setError("");
 
     try {
+      const response = await handlePollEntry(poll.id, selectedUser, spotType);
+
+      console.log("📡 Poll entry response:", response);
+
+      const maxSpots = getMaxSpotsForType(poll, spotType);
+      console.log(`Max spots for ${spotType}:`, maxSpots);
+
+      if (!response.success) {
+        console.error("❌ Entry failed:", response.message);
+        setError(response.message);
+        return;
+      }
+
+      console.log("✅ Entry successful!");
+      setSuccess(true);
+      setStep(3);
+
+      // For FCFS polls, results are immediate
       if (poll.selection_type === "first_come_first_serve") {
-        console.log("🏃 Handling FCFS poll entry");
-
-        const maxSpots = getMaxSpotsForType(poll, spotType);
-        console.log(`📊 Max spots for ${spotType}: ${maxSpots}`);
-
-        // Call the database function
-        const { data, error: rpcError } = await supabase.rpc(
-          "handle_fcfs_entry",
-          {
-            p_poll_id: poll.id,
-            p_user_id: selectedUser,
-            p_spot_type: spotType,
-            p_max_spots: maxSpots,
-          }
-        );
-
-        console.log("📡 RPC Response:", { data, error: rpcError });
-
-        if (rpcError) {
-          console.error("❌ FCFS RPC Error:", rpcError);
-          setError(`Failed to submit entry: ${rpcError.message}`);
-          return;
-        }
-
-        // Handle the response - it might be an array or direct object
-        let result = data;
-        if (Array.isArray(data) && data.length > 0) {
-          result = data[0];
-        }
-
-        console.log("🎲 Processed result:", result);
-
-        if (!result || !result.success) {
-          const errorMsg =
-            result?.message || "Failed to secure spot - unknown error";
-          console.error("❌ FCFS failed:", errorMsg);
-          setError(errorMsg);
-          return;
-        }
-
-        console.log("✅ FCFS Success! Moving to results page");
-
-        // Success! User got the spot
-        setSuccess(true);
-        setStep(3);
-
-        // For FCFS, results are immediate
         setResultsDrawn(true);
 
-        // If poll is full, mark it as ended
-        if (result.poll_full) {
+        // If poll was closed due to full capacity
+        if (response.pollClosed) {
           console.log("🔒 Poll is now full - marking as ended");
           setPollEnded(true);
         }
-
-        // Refresh data to show the new entry and result
-        console.log("🔄 Refreshing poll data...");
-        setTimeout(async () => {
-          try {
-            await Promise.all([
-              fetchEntries(),
-              fetchResults(),
-              fetchPollData(),
-            ]);
-            console.log("✅ Data refreshed successfully");
-          } catch (refreshError) {
-            console.error("❌ Error refreshing data:", refreshError);
-          }
-        }, 500);
-      } else {
-        console.log("🎲 Handling random poll entry");
-
-        // For random polls, use the existing logic
-        const { error } = await supabase.from("poll_entries").insert([
-          {
-            poll_id: poll.id,
-            user_id: selectedUser,
-            spot_type: spotType,
-          },
-        ]);
-
-        if (error) {
-          console.error("❌ Random poll entry error:", error);
-          throw error;
-        }
-
-        console.log("✅ Random poll entry successful");
-        setSuccess(true);
-        setStep(3);
       }
+
+      // Refresh data to show the new entry and results
+      console.log("🔄 Refreshing poll data...");
+      setTimeout(async () => {
+        try {
+          await Promise.all([fetchEntries(), fetchResults(), fetchPollData()]);
+          console.log("✅ Data refreshed successfully");
+        } catch (refreshError) {
+          console.error("❌ Error refreshing data:", refreshError);
+        }
+      }, 500);
     } catch (err: any) {
       console.error("💥 Submit entry error:", err);
       setError(err.message || "Failed to submit entry");

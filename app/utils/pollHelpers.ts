@@ -1,4 +1,4 @@
-// utils/pollHelpers.ts - Fixed FCFS poll entry logic
+// utils/pollHelpers.ts - Fixed to block entries when results are drawn
 import { supabase } from "@/app/lib/supabase";
 
 export interface PollEntryResponse {
@@ -28,16 +28,30 @@ export const handlePollEntry = async (
       throw new Error("Poll not found");
     }
 
+    // CRITICAL: Check if results have been drawn (including force draw by manager)
+    if (poll.results_drawn) {
+      return {
+        success: false,
+        message: "Poll is closed - results have already been drawn",
+      };
+    }
+
     // Check if poll is still active
-    if (!poll.is_active || poll.results_drawn) {
-      return { success: false, message: "Poll is no longer active" };
+    if (!poll.is_active) {
+      return {
+        success: false,
+        message: "Poll is no longer active",
+      };
     }
 
     // Check if poll has expired
     const now = new Date();
     const endTime = new Date(poll.open_until);
     if (endTime <= now) {
-      return { success: false, message: "Poll has expired" };
+      return {
+        success: false,
+        message: "Poll has expired",
+      };
     }
 
     // Check if user already entered this poll
@@ -49,7 +63,10 @@ export const handlePollEntry = async (
       .single();
 
     if (existingEntry) {
-      return { success: false, message: "You have already entered this poll" };
+      return {
+        success: false,
+        message: "You have already entered this poll",
+      };
     }
 
     if (poll.selection_type === "first_come_first_serve") {
@@ -74,7 +91,7 @@ async function handleFCFSEntry(
   userId: string,
   spotType: "am" | "pm" | "all_day"
 ): Promise<PollEntryResponse> {
-  // Use a transaction to ensure consistency
+  // Use database function to ensure atomicity
   const { data, error } = await supabase.rpc("handle_fcfs_entry", {
     p_poll_id: poll.id,
     p_user_id: userId,
@@ -132,6 +149,9 @@ async function handleRandomEntry(
   userId: string,
   spotType: "am" | "pm" | "all_day"
 ): Promise<PollEntryResponse> {
+  // Note: The main validation (results_drawn, is_active, expired)
+  // is already done in handlePollEntry above, so we can proceed directly
+
   const { error } = await supabase
     .from("poll_entries")
     .insert([{ poll_id: poll.id, user_id: userId, spot_type: spotType }]);
@@ -165,5 +185,3 @@ function getMaxSpotsForType(
       return 0;
   }
 }
-// Note: The above code assumes the existence of a PostgreSQL function `handle_fcfs_entry`
-// that encapsulates the logic for handling FCFS entries atomically.

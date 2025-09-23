@@ -463,13 +463,20 @@ export default function PollParticipationPage() {
     // Check if user already entered
     const { data: existingEntry } = await supabase
       .from("poll_entries")
-      .select("id")
+      .select("spot_type")
       .eq("poll_id", poll?.id)
       .eq("user_id", selectedUser)
       .single();
 
     if (existingEntry) {
-      setError("You have already entered this poll");
+      // User already entered - let them rejoin and see their status
+      console.log("User already entered, allowing them to see their entry");
+      setSpotType(existingEntry.spot_type);
+      setSuccess(true);
+      setStep(3); // Go directly to results/status page
+
+      // Fetch their entry and results
+      await Promise.all([fetchEntries(), fetchResults()]);
       return;
     }
 

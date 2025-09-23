@@ -1,4 +1,4 @@
-// Enhanced Dashboard Component with Safe Navigation
+// Enhanced Dashboard Component with Safe Navigation - WITH SORT & FILTER
 "use client";
 
 import { useEffect, useState } from "react";
@@ -23,20 +23,34 @@ interface Poll {
   created_at: string;
 }
 
+interface PollWithResults extends Poll {
+  winners?: { user_id: string; spot_type: string }[];
+}
+
 interface User {
   id: string;
   name: string;
   pin: string;
 }
 
+type SortOption = "date-desc" | "date-asc" | "title-asc" | "title-desc";
+type FilterOption = "all" | "active" | "completed" | "expired";
+
 export default function EnhancedDashboard() {
-  const [polls, setPolls] = useState<Poll[]>([]);
+  const [polls, setPolls] = useState<PollWithResults[]>([]);
+  const [filteredPolls, setFilteredPolls] = useState<PollWithResults[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [navigationLoading, setNavigationLoading] = useState<string | null>(
     null
   );
+
+  // Filter and Sort States
+  const [sortBy, setSortBy] = useState<SortOption>("date-desc");
+  const [filterBy, setFilterBy] = useState<FilterOption>("all");
+  const [selectedWinner, setSelectedWinner] = useState<string>("");
+
   const { user: authUser } = useAuth();
   const router = useRouter();
   const { navigateWithRetry } = usePollNavigation();
@@ -46,6 +60,10 @@ export default function EnhancedDashboard() {
       fetchDashboardData();
     }
   }, [authUser]);
+
+  useEffect(() => {
+    applyFiltersAndSort();
+  }, [polls, sortBy, filterBy, selectedWinner]);
 
   const fetchDashboardData = async () => {
     if (!authUser) return;
@@ -60,7 +78,24 @@ export default function EnhancedDashboard() {
         supabase.from("users").select("*").order("name"),
       ]);
 
-      if (pollsRes.data) setPolls(pollsRes.data);
+      if (pollsRes.data) {
+        // Fetch results for each poll
+        const pollsWithResults = await Promise.all(
+          pollsRes.data.map(async (poll) => {
+            const { data: results } = await supabase
+              .from("poll_results")
+              .select("user_id, spot_type")
+              .eq("poll_id", poll.id);
+
+            return {
+              ...poll,
+              winners: results || [],
+            };
+          })
+        );
+
+        setPolls(pollsWithResults);
+      }
       if (usersRes.data) setUsers(usersRes.data);
     } catch (err: any) {
       setError("Failed to load dashboard data");
@@ -68,6 +103,47 @@ export default function EnhancedDashboard() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const applyFiltersAndSort = () => {
+    let result = [...polls];
+
+    // Filter by status
+    if (filterBy !== "all") {
+      result = result.filter((poll) => {
+        const status = getPollStatus(poll).status;
+        return status === filterBy;
+      });
+    }
+
+    // Filter by winner
+    if (selectedWinner) {
+      result = result.filter((poll) =>
+        poll.winners?.some((w) => w.user_id === selectedWinner)
+      );
+    }
+
+    // Sort
+    result.sort((a, b) => {
+      switch (sortBy) {
+        case "date-desc":
+          return (
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          );
+        case "date-asc":
+          return (
+            new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          );
+        case "title-asc":
+          return a.title.localeCompare(b.title);
+        case "title-desc":
+          return b.title.localeCompare(a.title);
+        default:
+          return 0;
+      }
+    });
+
+    setFilteredPolls(result);
   };
 
   const handlePollNavigation = async (pollId: string) => {
@@ -89,7 +165,7 @@ export default function EnhancedDashboard() {
 
     if (poll.results_drawn) {
       return {
-        status: "completed",
+        status: "completed" as const,
         label: "Completed",
         className: "bg-gray-100 text-gray-800",
         description:
@@ -99,14 +175,14 @@ export default function EnhancedDashboard() {
       };
     } else if (endTime <= now || !poll.is_active) {
       return {
-        status: "expired",
+        status: "expired" as const,
         label: "Expired",
         className: "bg-red-100 text-red-800",
         description: "Poll has ended",
       };
     } else {
       return {
-        status: "active",
+        status: "active" as const,
         label: "Active",
         className: "bg-green-100 text-green-800",
         description:
@@ -191,18 +267,7 @@ export default function EnhancedDashboard() {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-start">
-            <svg
-              className="w-5 h-5 text-red-500 mr-2 mt-0.5 flex-shrink-0"
-              fill="currentColor"
-              viewBox="0 0 20 20"
-            >
-              <path
-                fillRule="evenodd"
-                d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                clipRule="evenodd"
-              />
-            </svg>
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-start justify-between">
             <div>
               <p className="text-red-800 font-medium">Error</p>
               <p className="text-red-700 text-sm">{error}</p>
@@ -267,6 +332,64 @@ export default function EnhancedDashboard() {
           </div>
         </div>
 
+        {/* Sort and Filter Controls */}
+        <div className="bg-white rounded-lg shadow-sm border p-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Status Filter */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Filter by Status
+              </label>
+              <select
+                value={filterBy}
+                onChange={(e) => setFilterBy(e.target.value as FilterOption)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="all">All Status</option>
+                <option value="active">Active</option>
+                <option value="completed">Completed</option>
+                <option value="expired">Expired</option>
+              </select>
+            </div>
+
+            {/* Winner Filter */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Filter by Winner
+              </label>
+              <select
+                value={selectedWinner}
+                onChange={(e) => setSelectedWinner(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">All Winners</option>
+                {users.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Sort */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Sort By
+              </label>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortOption)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="date-desc">Newest First</option>
+                <option value="date-asc">Oldest First</option>
+                <option value="title-asc">Title A-Z</option>
+                <option value="title-desc">Title Z-A</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
         {/* Polls Section */}
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-gray-900">Your Polls</h2>
@@ -278,25 +401,31 @@ export default function EnhancedDashboard() {
           </Link>
         </div>
 
-        {polls.length === 0 ? (
+        {filteredPolls.length === 0 ? (
           <div className="bg-white rounded-lg shadow-sm border p-8 text-center">
             <div className="text-gray-400 text-6xl mb-4">📊</div>
             <h3 className="text-lg font-medium text-gray-900 mb-2">
-              No polls created yet
+              {polls.length === 0
+                ? "No polls created yet"
+                : "No polls match your filters"}
             </h3>
             <p className="text-gray-600 mb-6">
-              Create your first poll to start managing flex spots
+              {polls.length === 0
+                ? "Create your first poll to start managing flex spots"
+                : "Try adjusting your filters to see more polls"}
             </p>
-            <Link
-              href="/manager/create-poll"
-              className="inline-flex items-center bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 font-medium"
-            >
-              Create Your First Poll
-            </Link>
+            {polls.length === 0 && (
+              <Link
+                href="/manager/create-poll"
+                className="inline-flex items-center bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 font-medium"
+              >
+                Create Your First Poll
+              </Link>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {polls.map((poll) => {
+            {filteredPolls.map((poll) => {
               const pollStatus = getPollStatus(poll);
               const pollTypeInfo = getPollTypeInfo(poll.selection_type);
               const endTime = new Date(poll.open_until);
@@ -313,12 +442,14 @@ export default function EnhancedDashboard() {
                       <h3 className="text-lg font-semibold text-gray-900 truncate">
                         {poll.title}
                       </h3>
-                      <p className="text-gray-600 text-sm line-clamp-2 mt-1">
-                        {poll.description || "No description provided"}
-                      </p>
+                      {poll.description && (
+                        <p className="text-gray-600 text-sm mt-1 line-clamp-2">
+                          {poll.description}
+                        </p>
+                      )}
                     </div>
                     <span
-                      className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${pollStatus.className}`}
+                      className={`px-2 py-1 rounded-full text-xs font-medium ${pollStatus.className} whitespace-nowrap`}
                     >
                       {pollStatus.label}
                     </span>
@@ -327,18 +458,14 @@ export default function EnhancedDashboard() {
                   {/* Poll Type Badge */}
                   <div className="mb-4">
                     <span
-                      className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${pollTypeInfo.className}`}
+                      className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${pollTypeInfo.className}`}
                     >
-                      <span className="mr-2">{pollTypeInfo.icon}</span>
-                      {pollTypeInfo.label}
+                      {pollTypeInfo.icon} {pollTypeInfo.label}
                     </span>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {pollTypeInfo.description}
-                    </p>
                   </div>
 
-                  {/* Spot Statistics */}
-                  <div className="grid grid-cols-3 gap-3 mb-4">
+                  {/* Spot Distribution */}
+                  <div className="grid grid-cols-3 gap-2 mb-4">
                     <div className="text-center bg-blue-50 rounded-lg p-3">
                       <div className="font-semibold text-blue-600 text-lg">
                         {poll.am_spots}
@@ -429,8 +556,7 @@ export default function EnhancedDashboard() {
                       {isNavigating ? (
                         <span className="flex items-center justify-center">
                           <svg
-                            className="animate-spin -ml-1 mr-2 h-4 w-4"
-                            fill="none"
+                            className="animate-spin h-4 w-4 mr-2"
                             viewBox="0 0 24 24"
                           >
                             <circle
@@ -440,74 +566,20 @@ export default function EnhancedDashboard() {
                               r="10"
                               stroke="currentColor"
                               strokeWidth="4"
-                            ></circle>
+                              fill="none"
+                            />
                             <path
                               className="opacity-75"
                               fill="currentColor"
-                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                            ></path>
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                            />
                           </svg>
-                          Opening...
+                          Loading...
                         </span>
                       ) : (
-                        "View Details & Results"
+                        "View Details"
                       )}
                     </button>
-
-                    <div className="flex gap-2">
-                      <Link
-                        href={`/poll/${poll.share_link}`}
-                        target="_blank"
-                        className="flex-1 bg-gray-600 text-white px-3 py-2 rounded-lg hover:bg-gray-700 text-sm font-medium text-center transition-colors"
-                      >
-                        Preview Poll
-                      </Link>
-
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(
-                            `${window.location.origin}/poll/${poll.share_link}`
-                          );
-                          // Could add toast notification here
-                        }}
-                        className="flex-1 bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 text-sm font-medium transition-colors"
-                      >
-                        Copy Link
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Poll Type Explanation Tooltip */}
-                  <div className="mt-3 pt-3 border-t border-gray-100">
-                    <details className="group">
-                      <summary className="cursor-pointer text-xs text-gray-500 hover:text-gray-700 flex items-center">
-                        <span>
-                          What is{" "}
-                          {poll.selection_type === "random"
-                            ? "Random Selection"
-                            : "First Come, First Serve"}
-                          ?
-                        </span>
-                        <svg
-                          className="w-3 h-3 ml-1 group-open:rotate-180 transition-transform"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 9l-7 7-7-7"
-                          />
-                        </svg>
-                      </summary>
-                      <div className="mt-2 p-2 bg-gray-50 rounded text-xs text-gray-600">
-                        {poll.selection_type === "random"
-                          ? "Winners are randomly selected from all participants when the poll closes. Everyone has equal chances regardless of when they enter."
-                          : "Spots are awarded immediately as employees enter. The first people to submit their entries get the spots - no waiting for results!"}
-                      </div>
-                    </details>
                   </div>
                 </div>
               );

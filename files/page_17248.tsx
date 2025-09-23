@@ -634,35 +634,36 @@ export default function PollDetailsPage() {
     }
   };
 
-  const getPollStatus = (poll: Poll) => {
+  const getPollStatus = (): PollStatus => {
+    if (!poll)
+      return {
+        status: "unknown",
+        label: "Unknown",
+        className: "bg-gray-100 text-gray-900",
+      };
+
     const now = new Date();
     const endTime = new Date(poll.open_until);
-    const hasEnded = endTime <= now;
 
-    // If poll has ended (by time or results drawn), it's completed
-    if (hasEnded || poll.results_drawn || !poll.is_active) {
+    if (poll.results_drawn) {
       return {
         status: "completed",
         label: "Completed",
-        className: "bg-gray-100 text-gray-800",
-        description: poll.results_drawn
-          ? poll.selection_type === "first_come_first_serve"
-            ? "All spots filled"
-            : "Results drawn"
-          : "Poll has ended",
+        className: "bg-green-100 text-green-800",
+      };
+    } else if (endTime <= now) {
+      return {
+        status: "expired",
+        label: "Expired",
+        className: "bg-red-100 text-red-800",
+      };
+    } else {
+      return {
+        status: "active",
+        label: "Active",
+        className: "bg-green-100 text-green-800",
       };
     }
-
-    // Otherwise poll is active
-    return {
-      status: "active",
-      label: "Active",
-      className: "bg-green-100 text-green-800",
-      description:
-        poll.selection_type === "first_come_first_serve"
-          ? "Accepting entries (instant results)"
-          : "Accepting entries",
-    };
   };
 
   if (loading) {
@@ -700,19 +701,20 @@ export default function PollDetailsPage() {
     );
   }
 
-  const pollStatus = getPollStatus(poll);
+  const pollStatus = getPollStatus();
   const shareUrl = `${window.location.origin}/poll/${poll.share_link}`;
   const pollEndTime = new Date(poll.open_until);
   const isPollActive = pollStatus.status === "active";
+  const isPollExpired = pollStatus.status === "expired";
   const isPollCompleted = pollStatus.status === "completed";
+  const canDrawResults = isPollExpired && !poll.results_drawn;
   const canForceEnd = isPollActive && !poll.results_drawn;
-  const needsResultsDraw =
-    isPollCompleted && !poll.results_drawn && poll.selection_type === "random";
+
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="bg-white rounded-xl border shadow-sm p-6 mb-6">
+        <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
             <button
               onClick={() => router.back()}
@@ -753,7 +755,7 @@ export default function PollDetailsPage() {
 
         {/* Force End Confirmation Modal */}
         {showForceEndConfirm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex border items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl shadow-xl p-6 max-w-md w-full">
               <h3 className="text-xl font-bold text-gray-900 mb-4">
                 Force End Poll Confirmation
@@ -799,53 +801,77 @@ export default function PollDetailsPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-2 md:grid-cols-2 gap-6 mb-6">
-          {/* Timer */}
-          {isPollActive && (
-            <div className="bg-white rounded-xl border shadow-sm p-6 mb-6">
-              <CountdownTimer targetDate={pollEndTime} />
-            </div>
-          )}
-          {/* Share Link */}
-          <div className="bg-blue-50 border rounded-xl p-6 mb-6">
-            <h3 className="font-semibold text-blue-900 mb-3 flex items-center">
-              <Icons.Share className="w-5 h-5 mr-2" />
-              Share with Employees
+        {/* Timer */}
+        {isPollActive && (
+          <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
+            <CountdownTimer targetDate={pollEndTime} />
+          </div>
+        )}
+
+        {/* Actions */}
+        {canDrawResults && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6 mb-6">
+            <h3 className="font-semibold text-yellow-900 mb-2">
+              Poll Has Expired
             </h3>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={shareUrl}
-                readOnly
-                className="flex-1 px-4 py-2 bg-white border border-blue-200 rounded-lg text-sm"
-                onClick={(e) => (e.target as HTMLInputElement).select()}
-              />
-              <button
-                onClick={async () => {
-                  await navigator.clipboard.writeText(shareUrl);
-                }}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 inline-flex items-center"
-              >
-                <Icons.Copy className="w-4 h-4 mr-2" />
-                Copy
-              </button>
-            </div>
+            <p className="text-yellow-700 mb-4">
+              This poll closed on {pollEndTime.toLocaleString()}. You can now
+              draw the results.
+            </p>
+            <button
+              onClick={handleDrawResults}
+              disabled={processing}
+              className="bg-yellow-600 text-white px-6 py-2 rounded-lg hover:bg-yellow-700 disabled:opacity-50 inline-flex items-center"
+            >
+              {processing ? (
+                <Icons.Spinner className="w-4 h-4 mr-2" />
+              ) : (
+                <Icons.Dice className="w-4 h-4 mr-2" />
+              )}
+              Draw Results Now
+            </button>
+          </div>
+        )}
+
+        {/* Share Link */}
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-6">
+          <h3 className="font-semibold text-blue-900 mb-3 flex items-center">
+            <Icons.Share className="w-5 h-5 mr-2" />
+            Share with Employees
+          </h3>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={shareUrl}
+              readOnly
+              className="flex-1 px-4 py-2 bg-white border border-blue-200 rounded-lg text-sm"
+              onClick={(e) => (e.target as HTMLInputElement).select()}
+            />
+            <button
+              onClick={async () => {
+                await navigator.clipboard.writeText(shareUrl);
+              }}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 inline-flex items-center"
+            >
+              <Icons.Copy className="w-4 h-4 mr-2" />
+              Copy
+            </button>
           </div>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 ">
-          <div className="bg-white rounded-xl border shadow-sm p-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+          <div className="bg-white rounded-xl shadow-sm p-6">
             <h3 className="text-sm text-gray-600 mb-2">Total Entries</h3>
             <p className="text-3xl font-bold text-blue-600">{entries.length}</p>
           </div>
-          <div className="bg-white rounded-xl border shadow-sm p-6">
+          <div className="bg-white rounded-xl shadow-sm p-6">
             <h3 className="text-sm text-gray-600 mb-2">Winners Selected</h3>
             <p className="text-3xl font-bold text-green-600">
               {results.length}
             </p>
           </div>
-          <div className="bg-white rounded-xl border shadow-sm p-6">
+          <div className="bg-white rounded-xl shadow-sm p-6">
             <h3 className="text-sm text-gray-600 mb-2">Available Spots</h3>
             <p className="text-3xl font-bold text-purple-600">
               {poll.am_spots + poll.pm_spots + poll.all_day_spots}
@@ -854,7 +880,7 @@ export default function PollDetailsPage() {
         </div>
 
         {/* Entries */}
-        <div className="bg-white rounded-xl border shadow-sm p-6 mb-6">
+        <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
           <h3 className="font-semibold text-gray-900 mb-4 flex items-center">
             <Icons.Users className="w-5 h-5 mr-2" />
             Entries ({entries.length})
