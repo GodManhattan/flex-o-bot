@@ -34,7 +34,7 @@ interface User {
 }
 
 type SortOption = "date-desc" | "date-asc" | "title-asc" | "title-desc";
-type FilterOption = "all" | "active" | "completed" | "expired";
+type FilterOption = "all" | "active" | "completed";
 
 export default function EnhancedDashboard() {
   const [polls, setPolls] = useState<PollWithResults[]>([]);
@@ -162,35 +162,32 @@ export default function EnhancedDashboard() {
   const getPollStatus = (poll: Poll) => {
     const now = new Date();
     const endTime = new Date(poll.open_until);
+    const hasEnded = endTime <= now;
 
-    if (poll.results_drawn) {
+    // If poll has ended (by time or results drawn), it's completed
+    if (hasEnded || poll.results_drawn || !poll.is_active) {
       return {
-        status: "completed" as const,
+        status: "completed",
         label: "Completed",
         className: "bg-gray-100 text-gray-800",
-        description:
-          poll.selection_type === "first_come_first_serve"
+        description: poll.results_drawn
+          ? poll.selection_type === "first_come_first_serve"
             ? "All spots filled"
-            : "Results drawn",
-      };
-    } else if (endTime <= now || !poll.is_active) {
-      return {
-        status: "expired" as const,
-        label: "Expired",
-        className: "bg-red-100 text-red-800",
-        description: "Poll has ended",
-      };
-    } else {
-      return {
-        status: "active" as const,
-        label: "Active",
-        className: "bg-green-100 text-green-800",
-        description:
-          poll.selection_type === "first_come_first_serve"
-            ? "Accepting entries (instant results)"
-            : "Accepting entries",
+            : "Results drawn"
+          : "Poll has ended",
       };
     }
+
+    // Otherwise poll is active
+    return {
+      status: "active",
+      label: "Active",
+      className: "bg-green-100 text-green-800",
+      description:
+        poll.selection_type === "first_come_first_serve"
+          ? "Accepting entries (instant results)"
+          : "Accepting entries",
+    };
   };
 
   const getPollTypeInfo = (

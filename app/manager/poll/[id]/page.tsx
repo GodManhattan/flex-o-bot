@@ -47,7 +47,7 @@ interface PollResult {
 }
 
 interface PollStatus {
-  status: "active" | "expired" | "completed" | "unknown";
+  status: "active" | "completed" | "unknown";
   label: string;
   className: string;
 }
