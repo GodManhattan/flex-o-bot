@@ -1,4 +1,4 @@
-// utils/pollHelpers.ts - Fixed to block entries when results are drawn
+// utils/pollHelpers.ts - Fixed to properly handle database function response
 import { supabase } from "@/app/lib/supabase";
 
 export interface PollEntryResponse {
@@ -91,54 +91,71 @@ async function handleFCFSEntry(
   userId: string,
   spotType: "am" | "pm" | "all_day"
 ): Promise<PollEntryResponse> {
-  // Use database function to ensure atomicity
-  const { data, error } = await supabase.rpc("handle_fcfs_entry", {
-    p_poll_id: poll.id,
-    p_user_id: userId,
-    p_spot_type: spotType,
-    p_max_spots: getMaxSpotsForType(poll, spotType),
-  });
+  try {
+    // Use database function to ensure atomicity
+    const { data, error } = await supabase.rpc("handle_fcfs_entry", {
+      p_poll_id: poll.id,
+      p_user_id: userId,
+      p_spot_type: spotType,
+      p_max_spots: getMaxSpotsForType(poll, spotType),
+    });
 
-  if (error) {
-    console.error("FCFS entry error:", error);
-    if (error.message?.includes("no spots available")) {
+    if (error) {
+      console.error("FCFS entry error:", error);
+      if (error.message?.includes("no spots available")) {
+        return {
+          success: false,
+          message: "No spots remaining for this time slot",
+        };
+      }
+      // Return the specific error message from the database function
       return {
         success: false,
-        message: "No spots remaining for this time slot",
+        message: error.message || "Failed to secure spot",
       };
     }
-    throw error;
-  }
 
-  const result = data?.[0];
-  if (!result?.success) {
-    return {
-      success: false,
-      message: result?.message || "Failed to secure spot",
-    };
-  }
+    // FIX: The data from supabase.rpc() is directly the result, not wrapped in an array
+    // The original code was trying to access data[0] which was undefined
+    const result = data;
 
-  // Check if all spots are now taken and close poll if needed
-  if (result.poll_full) {
-    await supabase
-      .from("polls")
-      .update({ is_active: false, results_drawn: true })
-      .eq("id", poll.id);
+    console.log("Database function result:", result);
+
+    if (!result || !result.success) {
+      return {
+        success: false,
+        message: result?.message || "Failed to secure spot",
+      };
+    }
+
+    // Check if all spots are now taken and close poll if needed
+    if (result.poll_full) {
+      await supabase
+        .from("polls")
+        .update({ is_active: false, results_drawn: true })
+        .eq("id", poll.id);
+
+      return {
+        success: true,
+        isWinner: true,
+        message:
+          "Congratulations! You got the spot. Poll is now closed as all spots are taken.",
+        pollClosed: true,
+      };
+    }
 
     return {
       success: true,
       isWinner: true,
-      message:
-        "Congratulations! You got the spot. Poll is now closed as all spots are taken.",
-      pollClosed: true,
+      message: "Congratulations! You secured a spot immediately.",
+    };
+  } catch (error) {
+    console.error("Error in handleFCFSEntry:", error);
+    return {
+      success: false,
+      message: "An error occurred while securing your spot",
     };
   }
-
-  return {
-    success: true,
-    isWinner: true,
-    message: "Congratulations! You secured a spot immediately.",
-  };
 }
 
 /**
