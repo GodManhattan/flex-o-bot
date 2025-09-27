@@ -597,9 +597,12 @@ export default function PollDetailsPage() {
     setError(null);
 
     try {
-      const { error: drawError } = await supabase.rpc("draw_poll_results", {
-        poll_uuid: poll.id,
-      });
+      const { error: drawError } = await supabase.rpc(
+        "draw_poll_results_with_rules",
+        {
+          poll_uuid: poll.id,
+        }
+      );
 
       if (drawError) throw drawError;
 
@@ -619,12 +622,26 @@ export default function PollDetailsPage() {
     setError(null);
 
     try {
-      // First draw results
-      const { error: drawError } = await supabase.rpc("draw_poll_results", {
-        poll_uuid: poll.id,
-      });
+      if (poll.selection_type === "first_come_first_serve") {
+        // For FCFS polls, just mark as completed
+        const { error: updateError } = await supabase
+          .from("polls")
+          .update({
+            is_active: false,
+            results_drawn: true,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", poll.id);
 
-      if (drawError) throw drawError;
+        if (updateError) throw updateError;
+      } else {
+        // For random polls, use the working draw function
+        const { error: drawError } = await supabase.rpc("draw_poll_results", {
+          poll_uuid: poll.id,
+        });
+
+        if (drawError) throw drawError;
+      }
 
       await fetchPollData();
     } catch (err: any) {
@@ -705,7 +722,11 @@ export default function PollDetailsPage() {
   const pollEndTime = new Date(poll.open_until);
   const isPollActive = pollStatus.status === "active";
   const isPollCompleted = pollStatus.status === "completed";
-  const canForceEnd = isPollActive && !poll.results_drawn;
+  const canForceEnd =
+    poll &&
+    poll.is_active &&
+    !poll.results_drawn &&
+    new Date(poll.open_until) > new Date();
   const needsResultsDraw =
     isPollCompleted && !poll.results_drawn && poll.selection_type === "random";
   return (

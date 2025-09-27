@@ -93,7 +93,7 @@ async function handleFCFSEntry(
 ): Promise<PollEntryResponse> {
   try {
     // Use database function to ensure atomicity
-    const { data, error } = await supabase.rpc("handle_fcfs_entry", {
+    const { data, error } = await supabase.rpc("handle_fcfs_entry_with_rules", {
       p_poll_id: poll.id,
       p_user_id: userId,
       p_spot_type: spotType,
@@ -166,22 +166,44 @@ async function handleRandomEntry(
   userId: string,
   spotType: "am" | "pm" | "all_day"
 ): Promise<PollEntryResponse> {
-  // Note: The main validation (results_drawn, is_active, expired)
-  // is already done in handlePollEntry above, so we can proceed directly
+  try {
+    // Use the rule-checking database function
+    const { data, error } = await supabase.rpc("handle_poll_entry_with_rules", {
+      p_poll_id: poll.id,
+      p_user_id: userId,
+      p_spot_type: spotType,
+    });
 
-  const { error } = await supabase
-    .from("poll_entries")
-    .insert([{ poll_id: poll.id, user_id: userId, spot_type: spotType }]);
+    if (error) {
+      console.error("Random entry error:", error);
+      return {
+        success: false,
+        message: error.message || "Failed to enter poll",
+      };
+    }
 
-  if (error) {
-    console.error("Random entry error:", error);
-    throw error;
+    const result = data;
+
+    if (!result || !result.success) {
+      return {
+        success: false,
+        message: result?.message || "Failed to enter poll",
+      };
+    }
+
+    return {
+      success: true,
+      message:
+        result.message ||
+        "Entry submitted! Results will be announced when the poll closes.",
+    };
+  } catch (error) {
+    console.error("Error in handleRandomEntry:", error);
+    return {
+      success: false,
+      message: "An error occurred while submitting your entry",
+    };
   }
-
-  return {
-    success: true,
-    message: "Entry submitted! Results will be announced when the poll closes.",
-  };
 }
 
 /**

@@ -1,7 +1,7 @@
 // app/manager/create-poll/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/app/lib/supabase";
 import { useAuth } from "@/app/contexts/AuthContext";
@@ -11,7 +11,32 @@ import { SelectionTypeCard } from "@/app/components/poll/SelectionTypeCard";
 import { SpotCounter } from "@/app/components/poll/SpotCounter";
 import { DurationSelector } from "@/app/components/poll/DurationSelector";
 import { PollPreviewCard } from "@/app/components/poll/PollPreviewCard";
-
+import { useFormValidation } from "@/app/hooks/useFormValidation";
+interface User {
+  id: string;
+  name: string;
+  pin: string;
+  created_at: string;
+}
+interface RecentWinner {
+  user_id: string;
+  name: string;
+  pollTitle: string;
+  wonAt: string;
+}
+interface PollRulesProps {
+  allUsers: User[];
+  pollRules: PollRules;
+  setPollRules: (rules: any) => void;
+  recentWinners: any[];
+  loadingRecentWinners: boolean;
+}
+interface PollRules {
+  excludeSpecificUsers: string[]; // Array of user IDs to exclude
+  excludeRecentWinners: boolean; // Whether to exclude recent winners
+  recentWinnerTimeframe: "day" | "week" | "month" | null; // Timeframe for recent winners
+  // Add more rule types as needed
+}
 function CreatePollContent() {
   const generateDefaultTitle = () => {
     const today = new Date();
@@ -30,8 +55,18 @@ function CreatePollContent() {
     am_spots: 0,
     pm_spots: 0,
     all_day_spots: 0,
+    open_until: "",
     selection_type: "random" as "random" | "first_come_first_serve",
   });
+  // Poll rules state
+  const [pollRules, setPollRules] = useState<PollRules>({
+    excludeSpecificUsers: [],
+    excludeRecentWinners: false,
+    recentWinnerTimeframe: null,
+  });
+  // UI state for rules section
+  const [showUserExclusion, setShowUserExclusion] = useState(false);
+  const [userSearchTerm, setUserSearchTerm] = useState("");
 
   const [durationMinutes, setDurationMinutes] = useState(60);
   const [loading, setLoading] = useState(false);
@@ -39,37 +74,269 @@ function CreatePollContent() {
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const { user } = useAuth();
   const router = useRouter();
-
+  const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [recentWinners, setRecentWinners] = useState<RecentWinner[]>([]);
+  const [loadingRecentWinners, setLoadingRecentWinners] = useState(false);
   const totalSpots =
     formData.am_spots + formData.pm_spots + formData.all_day_spots;
 
+  // Form validation
+  const validationRules = {
+    title: [
+      {
+        validator: (value: string) => value.trim().length > 0,
+        message: "Title is required",
+      },
+      {
+        validator: (value: string) => value.trim().length <= 100,
+        message: "Title must be 100 characters or less",
+      },
+    ],
+    // description: [
+    //   {
+    //     validator: (value: string) => value.trim().length > 0,
+    //     message: "Description is required",
+    //   },
+    //   {
+    //     validator: (value: string) => value.trim().length <= 500,
+    //     message: "Description must be 500 characters or less",
+    //   },
+    // ],
+    spots: [
+      {
+        validator: () =>
+          formData.am_spots + formData.pm_spots + formData.all_day_spots > 0,
+        message: "At least one spot must be available",
+      },
+    ],
+    open_until: [
+      {
+        validator: (value: string) => value.length > 0,
+        message: "End time is required",
+      },
+      {
+        validator: (value: string) => new Date(value) > new Date(),
+        message: "End time must be in the future",
+      },
+    ],
+  };
+  const { errors, validateAll, clearErrors } =
+    useFormValidation(validationRules);
+
+  const fetchUsers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("users")
+        .select("*")
+        .order("name");
+
+      if (error) throw error;
+      setAllUsers(data || []);
+    } catch (err: any) {
+      console.error("Error fetching users:", err);
+      setError("Failed to load users");
+    }
+  };
+  const fetchRecentWinners = async (timeframe: "day" | "week" | "month") => {
+    try {
+      setLoadingRecentWinners(true);
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      let startDate: Date;
+      const now = new Date();
+
+      switch (timeframe) {
+        case "day":
+          startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+          break;
+        case "week":
+          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case "month":
+          startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          break;
+      }
+
+      const { data, error } = await supabase
+        .from("poll_results")
+        .select(
+          `
+          user_id,
+          users!poll_results_user_id_fkey ( id, name ),
+          polls!poll_results_poll_id_fkey ( title, created_at )
+        `
+        )
+        .gte("polls.created_at", startDate.toISOString())
+        .eq("polls.manager_id", user.id);
+
+      if (error) throw error;
+
+      // Group by user to avoid duplicates
+      const uniqueWinners =
+        data?.reduce((acc: RecentWinner[], result: any) => {
+          const existingUser = acc.find((w) => w.user_id === result.user_id);
+          if (!existingUser && result.users) {
+            acc.push({
+              user_id: result.user_id,
+              name: result.users.name,
+              pollTitle: result.polls?.title || "Unknown Poll",
+              wonAt: result.polls?.created_at || "",
+            });
+          }
+          return acc;
+        }, []) || [];
+
+      setRecentWinners(uniqueWinners);
+    } catch (err: any) {
+      console.error("Error fetching recent winners:", err);
+    } finally {
+      setLoadingRecentWinners(false);
+    }
+  };
+
+  // Fetch users on component mount
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  // Fetch recent winners when rule is enabled
+  useEffect(() => {
+    if (pollRules.excludeRecentWinners && pollRules.recentWinnerTimeframe) {
+      fetchRecentWinners(pollRules.recentWinnerTimeframe);
+    } else {
+      setRecentWinners([]);
+    }
+  }, [pollRules.excludeRecentWinners, pollRules.recentWinnerTimeframe]);
+  // Filter users for exclusion selection (exclude already selected users)
+  const availableUsersForExclusion = allUsers.filter(
+    (user) =>
+      user.name.toLowerCase().includes(userSearchTerm.toLowerCase()) &&
+      !pollRules.excludeSpecificUsers.includes(user.id)
+  );
+
+  // Get user names for display
+  const getExcludedUserNames = () => {
+    return pollRules.excludeSpecificUsers
+      .map((id) => allUsers.find((u) => u.id === id)?.name)
+      .filter(Boolean);
+  };
+
+  // Calculate rule impact
+  const calculateRuleImpact = () => {
+    let excludedCount = pollRules.excludeSpecificUsers.length;
+
+    if (pollRules.excludeRecentWinners) {
+      // Add recent winners to exclusion count (avoid double counting)
+      const recentWinnerIds = recentWinners.map((w) => w.user_id);
+      const uniqueExclusions = new Set([
+        ...pollRules.excludeSpecificUsers,
+        ...recentWinnerIds,
+      ]);
+      excludedCount = uniqueExclusions.size;
+    }
+
+    return {
+      totalUsers: allUsers.length,
+      excludedUsers: excludedCount,
+      eligibleUsers: Math.max(0, allUsers.length - excludedCount),
+    };
+  };
+
+  const ruleImpact = calculateRuleImpact();
+
+  const handleInputChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >
+  ) => {
+    const { name, value, type } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === "number" ? parseInt(value) || 0 : value,
+    }));
+    clearErrors();
+  };
+
+  const handleExcludeUser = (userId: string) => {
+    setPollRules((prev) => ({
+      ...prev,
+      excludeSpecificUsers: [...prev.excludeSpecificUsers, userId],
+    }));
+    setUserSearchTerm("");
+  };
+
+  const handleRemoveExcludedUser = (userId: string) => {
+    setPollRules((prev) => ({
+      ...prev,
+      excludeSpecificUsers: prev.excludeSpecificUsers.filter(
+        (id) => id !== userId
+      ),
+    }));
+  };
+
+  const handleRecentWinnerExclusion = (
+    enabled: boolean,
+    timeframe?: "day" | "week" | "month"
+  ) => {
+    setPollRules((prev) => ({
+      ...prev,
+      excludeRecentWinners: enabled,
+      recentWinnerTimeframe: enabled ? timeframe || "week" : null,
+    }));
+  };
+
+  const generateShareLink = () => {
+    return (
+      Math.random().toString(36).substring(2, 15) +
+      Math.random().toString(36).substring(2, 15)
+    );
+  };
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
 
-    if (!formData.title.trim()) {
-      setError("Poll title is required");
+    // Validate basic form data
+    // if (!validateAll(formData)) {
+    //   setError("Please fix the validation errors above");
+    //   return;
+    // }
+
+    // Check if rules would exclude everyone
+    if (ruleImpact.eligibleUsers === 0) {
+      setError(
+        "Your rules would exclude all users. Please adjust the rules or no one will be able to participate."
+      );
       return;
     }
-
-    if (totalSpots === 0) {
-      setError("At least one spot must be available");
-      return;
-    }
-
-    if (durationMinutes < 3) {
-      setError("Poll duration must be at least 3 minutes");
-      return;
-    }
-
-    setLoading(true);
-    setError("");
 
     try {
-      const now = new Date();
-      const endTime = new Date(now.getTime() + durationMinutes * 60000);
-      const shareLink = `poll_${Math.random().toString(36).substr(2, 8)}`;
+      setLoading(true);
+      setError("");
 
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        router.push("/manager/login");
+        return;
+      }
+      if (!formData.open_until) {
+        // Calculate end time based on duration
+        const now = new Date();
+        const calculatedEndTime = new Date(
+          now.getTime() + durationMinutes * 60000
+        );
+        formData.open_until = calculatedEndTime.toISOString().slice(0, 16); // Format for datetime-local
+      }
+
+      const endTime = new Date(formData.open_until);
+
+      const shareLink = `poll_${generateShareLink()}`;
+
+      // Insert poll with rules
       const { data, error: insertError } = await supabase
         .from("polls")
         .insert([
@@ -80,20 +347,30 @@ function CreatePollContent() {
             open_until: endTime.toISOString(),
             manager_id: user.id,
             share_link: shareLink,
+            // Rules data
+            excluded_user_ids:
+              pollRules.excludeSpecificUsers.length > 0
+                ? pollRules.excludeSpecificUsers
+                : null,
+            exclude_recent_winners: pollRules.excludeRecentWinners,
+            exclude_timeframe: pollRules.recentWinnerTimeframe,
           },
         ])
         .select()
         .single();
 
       if (insertError) throw insertError;
-      if (data) router.push(`/manager/poll/${data.id}`);
+
+      if (data) {
+        // Redirect to poll details page
+        router.push(`/manager/poll/${data.id}`);
+      }
     } catch (err: any) {
       setError(err.message || "Failed to create poll");
     } finally {
       setLoading(false);
     }
   };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 pb-20 lg:pb-8 ">
       {/* Header */}
@@ -167,7 +444,7 @@ function CreatePollContent() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8 ">
+      <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8 ">
         <form onSubmit={handleSubmit} className="space-y-6 border rounded-xl ">
           {/* Error Alert */}
           {error && (
@@ -401,19 +678,243 @@ function CreatePollContent() {
                   </button>
                 </div>
               </div>
+              {/* Poll Rules Section */}
+              <div className="bg-white rounded-lg shadow-sm border p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  Participation Rules (Optional)
+                </h3>
+                <p className="text-sm text-gray-600 mb-6">
+                  Configure rules to control who can participate in this poll
+                </p>
+
+                {/* Exclude Specific Users */}
+                <div className="mb-6">
+                  <label className="flex items-center mb-3">
+                    <input
+                      type="checkbox"
+                      checked={showUserExclusion}
+                      onChange={(e) => setShowUserExclusion(e.target.checked)}
+                      className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <span className="text-sm font-medium text-gray-700">
+                      Exclude Specific Users
+                    </span>
+                  </label>
+
+                  {showUserExclusion && (
+                    <div className="ml-6 space-y-4">
+                      {/* Show currently excluded users */}
+                      {pollRules.excludeSpecificUsers.length > 0 && (
+                        <div>
+                          <p className="text-sm text-gray-600 mb-2">
+                            Excluded Users:
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {getExcludedUserNames().map((userName, index) => {
+                              const userId =
+                                pollRules.excludeSpecificUsers[index];
+                              return (
+                                <span
+                                  key={userId}
+                                  className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800"
+                                >
+                                  {userName}
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleRemoveExcludedUser(userId)
+                                    }
+                                    className="ml-2 text-red-600 hover:text-red-800"
+                                  >
+                                    ×
+                                  </button>
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* User search and selection */}
+                      <div className="border rounded-lg p-4 bg-gray-50">
+                        <input
+                          type="text"
+                          placeholder="Search users to exclude..."
+                          value={userSearchTerm}
+                          onChange={(e) => setUserSearchTerm(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3"
+                        />
+                        <div className="max-h-40 overflow-y-auto space-y-1">
+                          {availableUsersForExclusion.length > 0 ? (
+                            availableUsersForExclusion.map((user) => (
+                              <button
+                                key={user.id}
+                                type="button"
+                                onClick={() => handleExcludeUser(user.id)}
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded flex items-center justify-between"
+                              >
+                                <span>{user.name}</span>
+                                <span className="text-red-500">Exclude</span>
+                              </button>
+                            ))
+                          ) : (
+                            <p className="text-sm text-gray-500 text-center py-4">
+                              {userSearchTerm
+                                ? "No matching users found"
+                                : "No more users to exclude"}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Exclude Recent Winners */}
+                <div className="mb-6">
+                  <label className="flex items-center mb-3">
+                    <input
+                      type="checkbox"
+                      checked={pollRules.excludeRecentWinners}
+                      onChange={(e) =>
+                        handleRecentWinnerExclusion(e.target.checked, "week")
+                      }
+                      className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <span className="text-sm font-medium text-gray-700">
+                      Exclude Recent Winners
+                    </span>
+                  </label>
+
+                  {pollRules.excludeRecentWinners && (
+                    <div className="ml-6 space-y-4">
+                      <p className="text-sm text-gray-600 mb-3">
+                        Exclude users who won a poll in the selected timeframe:
+                      </p>
+                      <div className="space-y-2">
+                        {["day", "week", "month"].map((timeframe) => (
+                          <label key={timeframe} className="flex items-center">
+                            <input
+                              type="radio"
+                              name="recentWinnerTimeframe"
+                              value={timeframe}
+                              checked={
+                                pollRules.recentWinnerTimeframe === timeframe
+                              }
+                              onChange={(e) =>
+                                handleRecentWinnerExclusion(
+                                  true,
+                                  e.target.value as any
+                                )
+                              }
+                              className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                            />
+                            <span className="text-sm text-gray-700 capitalize">
+                              Past {timeframe}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+
+                      {/* Show recent winners */}
+                      {pollRules.recentWinnerTimeframe && (
+                        <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                          {loadingRecentWinners ? (
+                            <div className="flex items-center text-sm text-orange-800">
+                              <div className="animate-spin h-4 w-4 border-2 border-orange-600 border-t-transparent rounded-full mr-2"></div>
+                              Loading recent winners...
+                            </div>
+                          ) : recentWinners.length > 0 ? (
+                            <div>
+                              <h4 className="text-sm font-medium text-orange-900 mb-2">
+                                Recent Winners ({recentWinners.length}) - Will
+                                be excluded:
+                              </h4>
+                              <div className="space-y-1">
+                                {recentWinners.slice(0, 5).map((winner) => (
+                                  <div
+                                    key={winner.user_id}
+                                    className="text-xs text-orange-800"
+                                  >
+                                    • {winner.name} - won "{winner.pollTitle}"
+                                  </div>
+                                ))}
+                                {recentWinners.length > 5 && (
+                                  <div className="text-xs text-orange-700">
+                                    ... and {recentWinners.length - 5} more
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-sm text-orange-800">
+                              No recent winners found in the past{" "}
+                              {pollRules.recentWinnerTimeframe}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Rule Impact Preview */}
+                {(pollRules.excludeSpecificUsers.length > 0 ||
+                  pollRules.excludeRecentWinners) && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h4 className="text-sm font-medium text-blue-900 mb-2">
+                      Rule Impact Preview:
+                    </h4>
+                    <div className="grid grid-cols-3 gap-4 text-sm">
+                      <div className="text-center">
+                        <div className="text-lg font-bold text-gray-900">
+                          {ruleImpact.totalUsers}
+                        </div>
+                        <div className="text-xs text-gray-600">Total Users</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-lg font-bold text-red-600">
+                          {ruleImpact.excludedUsers}
+                        </div>
+                        <div className="text-xs text-gray-600">Excluded</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-lg font-bold text-green-600">
+                          {ruleImpact.eligibleUsers}
+                        </div>
+                        <div className="text-xs text-gray-600">Eligible</div>
+                      </div>
+                    </div>
+
+                    {ruleImpact.eligibleUsers === 0 && (
+                      <div className="mt-3 p-2 bg-red-100 border border-red-300 rounded text-xs text-red-800">
+                        ⚠️ Warning: All users are excluded! No one will be able
+                        to participate.
+                      </div>
+                    )}
+                    {ruleImpact.eligibleUsers < 3 &&
+                      ruleImpact.eligibleUsers > 0 && (
+                        <div className="mt-3 p-2 bg-yellow-100 border border-yellow-300 rounded text-xs text-yellow-800">
+                          ⚠️ Warning: Very few users ({ruleImpact.eligibleUsers}
+                          ) will be eligible to participate.
+                        </div>
+                      )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          {/* <div className="grid grid-cols-2 gap-4">
             {" "}
             {/* Poll Preview */}
-            <PollPreviewCard
+          {/* <PollPreviewCard
               title={formData.title}
               selectionType={formData.selection_type}
               totalSpots={totalSpots}
               durationMinutes={durationMinutes}
-            />
-            {/* Tips Card */}
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 sm:p-6">
+            /> */}
+          {/* Tips Card */}
+          {/* <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 sm:p-6">
               <h3 className="font-semibold text-blue-900 mb-3 flex items-center text-sm sm:text-base">
                 <Icons.Info className="w-5 h-5 mr-2" />
                 Poll Creation Tips
@@ -457,8 +958,8 @@ function CreatePollContent() {
                   </p>
                 )}
               </div>
-            </div>
-          </div>
+            </div> */}
+          {/* </div> */}
         </form>
       </div>
     </div>

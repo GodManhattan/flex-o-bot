@@ -1,4 +1,3 @@
-
 DECLARE
     expired_poll RECORD;
 BEGIN

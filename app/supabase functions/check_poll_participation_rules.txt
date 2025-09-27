@@ -1,0 +1,73 @@
+
+DECLARE
+    poll_record RECORD;
+    result JSON;
+    is_recent_winner BOOLEAN := false;
+    exclusion_start_date TIMESTAMP;
+BEGIN
+    -- Get poll details including rules
+    SELECT * INTO poll_record 
+    FROM polls 
+    WHERE id = p_poll_id;
+    
+    IF NOT FOUND THEN
+        RETURN json_build_object('allowed', false, 'reason', 'Poll not found');
+    END IF;
+    
+    -- Check if poll is active
+    IF NOT poll_record.is_active THEN
+        RETURN json_build_object('allowed', false, 'reason', 'Poll is not active');
+    END IF;
+    
+    -- Check if poll has expired
+    IF poll_record.open_until <= NOW() THEN
+        RETURN json_build_object('allowed', false, 'reason', 'Poll has expired');
+    END IF;
+    
+    -- Check if user is specifically excluded
+    IF poll_record.excluded_user_ids IS NOT NULL AND 
+       p_user_id::TEXT = ANY(poll_record.excluded_user_ids) THEN
+        RETURN json_build_object('allowed', false, 'reason', 'You are excluded from this poll');
+    END IF;
+    
+    -- Check if user already participated
+    IF EXISTS (SELECT 1 FROM poll_entries WHERE poll_id = p_poll_id AND user_id = p_user_id) THEN
+        RETURN json_build_object('allowed', false, 'reason', 'You have already entered this poll');
+    END IF;
+    
+    -- Check recent winner exclusion rule
+    IF poll_record.exclude_recent_winners AND poll_record.exclude_timeframe IS NOT NULL THEN
+        -- Calculate the start date based on timeframe
+        CASE poll_record.exclude_timeframe
+            WHEN 'day' THEN exclusion_start_date := NOW() - INTERVAL '1 day';
+            WHEN 'week' THEN exclusion_start_date := NOW() - INTERVAL '1 week';
+            WHEN 'month' THEN exclusion_start_date := NOW() - INTERVAL '1 month';
+            ELSE exclusion_start_date := NOW() - INTERVAL '1 week'; -- default
+        END CASE;
+        
+        -- Check if user won any poll in the timeframe
+        SELECT EXISTS (
+            SELECT 1 
+            FROM poll_results pr
+            JOIN polls p ON pr.poll_id = p.id
+            WHERE pr.user_id = p_user_id 
+            AND p.created_at >= exclusion_start_date
+            AND p.manager_id = poll_record.manager_id  -- Only check polls from same manager
+        ) INTO is_recent_winner;
+        
+        IF is_recent_winner THEN
+            RETURN json_build_object(
+                'allowed', false, 
+                'reason', 'You won a poll in the past ' || poll_record.exclude_timeframe || ' and are excluded from this poll'
+            );
+        END IF;
+    END IF;
+    
+    -- All checks passed
+    RETURN json_build_object('allowed', true, 'reason', 'Participation allowed');
+    
+EXCEPTION 
+    WHEN OTHERS THEN
+        RAISE WARNING 'Error in check_poll_participation_rules: %', SQLERRM;
+        RETURN json_build_object('allowed', false, 'reason', 'Error checking participation rules');
+END;

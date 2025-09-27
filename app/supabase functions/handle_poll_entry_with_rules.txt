@@ -1,0 +1,45 @@
+
+DECLARE
+    rule_check JSON;
+    poll_record RECORD;
+BEGIN
+    -- First check if user can participate based on rules
+    SELECT check_poll_participation_rules(p_poll_id, p_user_id) INTO rule_check;
+    
+    -- If not allowed, return the reason
+    IF NOT (rule_check->>'allowed')::BOOLEAN THEN
+        RETURN json_build_object(
+            'success', false, 
+            'message', rule_check->>'reason'
+        );
+    END IF;
+    
+    -- Get poll details
+    SELECT * INTO poll_record FROM polls WHERE id = p_poll_id;
+    
+    IF NOT FOUND THEN
+        RETURN json_build_object('success', false, 'message', 'Poll not found');
+    END IF;
+    
+    -- Insert the entry
+    BEGIN
+        INSERT INTO poll_entries (poll_id, user_id, spot_type, created_at)
+        VALUES (p_poll_id, p_user_id, p_spot_type, NOW());
+        
+        RETURN json_build_object(
+            'success', true, 
+            'message', 'Successfully entered the poll! Results will be drawn when the poll closes.'
+        );
+        
+    EXCEPTION WHEN unique_violation THEN
+        RETURN json_build_object('success', false, 'message', 'You have already entered this poll');
+    WHEN OTHERS THEN
+        RAISE WARNING 'Error inserting poll entry: %', SQLERRM;
+        RETURN json_build_object('success', false, 'message', 'Failed to enter poll: ' || SQLERRM);
+    END;
+    
+EXCEPTION 
+    WHEN OTHERS THEN
+        RAISE WARNING 'Unexpected error in handle_poll_entry_with_rules: %', SQLERRM;
+        RETURN json_build_object('success', false, 'message', 'Database error occurred: ' || SQLERRM);
+END;

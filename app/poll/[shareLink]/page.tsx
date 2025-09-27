@@ -1046,7 +1046,7 @@ export default function PollParticipationPage() {
               )}
 
               {/* Debug info for development */}
-              {process.env.NODE_ENV === "development" && (
+              {/* {process.env.NODE_ENV === "development" && (
                 <div className="bg-gray-100 p-3 rounded text-xs">
                   <details>
                     <summary className="cursor-pointer font-medium">
@@ -1091,21 +1091,20 @@ export default function PollParticipationPage() {
                     </div>
                   </details>
                 </div>
-              )}
-
+              )} */}
+              <button
+                onClick={manualRefresh}
+                className="px-3 py-1 bg-yellow-600 text-white rounded text-sm"
+              >
+                Refresh Status
+              </button>
               {/* Enhanced Debug Component for Production Testing */}
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              {/* <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-medium text-yellow-900">Live Status</h4>
-                  <button
-                    onClick={manualRefresh}
-                    className="px-3 py-1 bg-yellow-600 text-white rounded text-sm"
-                  >
-                    Refresh Status
-                  </button>
-                </div>
+                  {/* <h4 className="font-medium text-yellow-900">Live Status</h4> */}
+              {/* </div> */}
 
-                <div className="grid grid-cols-2 gap-4 text-sm">
+              {/* <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <div className="font-medium">Frontend State:</div>
                     <div>Results Drawn: {resultsDrawn ? "Yes" : "No"}</div>
@@ -1125,9 +1124,9 @@ export default function PollParticipationPage() {
                       </div>
                     )}
                   </div>
-                </div>
+                </div> */}
 
-                {pollEnded && !resultsDrawn && (
+              {/* {pollEnded && !resultsDrawn && (
                   <div className="mt-3 p-2 bg-orange-100 rounded text-center">
                     <div className="text-orange-800 font-medium">
                       Actively monitoring for results...
@@ -1136,8 +1135,8 @@ export default function PollParticipationPage() {
                       Checking every 5 seconds • Real-time subscriptions active
                     </div>
                   </div>
-                )}
-              </div>
+                )} */}
+              {/* </div>  */}
             </div>
           )}
         </div>

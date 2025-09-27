@@ -50,7 +50,7 @@ export const useAutoDrawResults = (polls: Poll[], onPollUpdate: () => void) => {
               console.log("Random poll ended - drawing results");
 
               const { error: drawError } = await supabase.rpc(
-                "draw_poll_results",
+                "draw_poll_results_with_rules",
                 {
                   poll_uuid: poll.id,
                 }
@@ -105,9 +105,12 @@ export const manualDrawPollResults = async (
       // For random polls, call the draw function
       console.log("Drawing random poll results");
 
-      const { error: drawError } = await supabase.rpc("draw_poll_results", {
-        poll_uuid: pollId,
-      });
+      const { error: drawError } = await supabase.rpc(
+        "draw_poll_results_with_rules",
+        {
+          poll_uuid: pollId,
+        }
+      );
 
       if (drawError) {
         console.error("Error drawing random poll results:", drawError);

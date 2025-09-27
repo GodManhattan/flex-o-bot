@@ -1,0 +1,97 @@
+
+DECLARE
+    poll_record RECORD;
+    result_count INTEGER;
+    eligible_users_count INTEGER;
+BEGIN
+    -- Get poll details
+    SELECT * INTO poll_record FROM polls WHERE id = poll_uuid;
+    
+    IF NOT FOUND THEN
+        RETURN json_build_object('success', false, 'error', 'Poll not found');
+    END IF;
+    
+    -- Check if results already drawn
+    IF poll_record.results_drawn THEN
+        RETURN json_build_object('success', false, 'error', 'Results already drawn');
+    END IF;
+    
+    -- For FCFS polls, just mark as drawn (results already created during entry)
+    IF poll_record.selection_type = 'first_come_first_serve' THEN
+        UPDATE polls 
+        SET results_drawn = true, is_active = false, updated_at = NOW()
+        WHERE id = poll_uuid;
+        
+        SELECT COUNT(*) INTO result_count FROM poll_results WHERE poll_id = poll_uuid;
+        
+        RETURN json_build_object(
+            'success', true, 
+            'message', 'FCFS poll results confirmed',
+            'total_winners', result_count
+        );
+    END IF;
+    
+    -- For random selection, draw from eligible participants only
+    -- Delete any existing results
+    DELETE FROM poll_results WHERE poll_id = poll_uuid;
+    
+    -- Draw AM winners from eligible users
+    IF poll_record.am_spots > 0 THEN
+        INSERT INTO poll_results (poll_id, user_id, spot_type)
+        SELECT poll_uuid, pe.user_id, 'am'
+        FROM poll_entries pe
+        WHERE pe.poll_id = poll_uuid 
+        AND pe.spot_type = 'am'
+        AND pe.user_id IN (
+            SELECT user_id FROM get_eligible_poll_participants(poll_uuid)
+        )
+        ORDER BY RANDOM()
+        LIMIT poll_record.am_spots;
+    END IF;
+    
+    -- Draw PM winners from eligible users
+    IF poll_record.pm_spots > 0 THEN
+        INSERT INTO poll_results (poll_id, user_id, spot_type)
+        SELECT poll_uuid, pe.user_id, 'pm'
+        FROM poll_entries pe
+        WHERE pe.poll_id = poll_uuid 
+        AND pe.spot_type = 'pm'
+        AND pe.user_id IN (
+            SELECT user_id FROM get_eligible_poll_participants(poll_uuid)
+        )
+        ORDER BY RANDOM()
+        LIMIT poll_record.pm_spots;
+    END IF;
+    
+    -- Draw All Day winners from eligible users
+    IF poll_record.all_day_spots > 0 THEN
+        INSERT INTO poll_results (poll_id, user_id, spot_type)
+        SELECT poll_uuid, pe.user_id, 'all_day'
+        FROM poll_entries pe
+        WHERE pe.poll_id = poll_uuid 
+        AND pe.spot_type = 'all_day'
+        AND pe.user_id IN (
+            SELECT user_id FROM get_eligible_poll_participants(poll_uuid)
+        )
+        ORDER BY RANDOM()
+        LIMIT poll_record.all_day_spots;
+    END IF;
+    
+    -- Mark poll as complete
+    UPDATE polls 
+    SET results_drawn = true, is_active = false, updated_at = NOW()
+    WHERE id = poll_uuid;
+    
+    SELECT COUNT(*) INTO result_count FROM poll_results WHERE poll_id = poll_uuid;
+    
+    RETURN json_build_object(
+        'success', true, 
+        'message', 'Random results drawn with rules applied',
+        'total_winners', result_count
+    );
+    
+EXCEPTION 
+    WHEN OTHERS THEN
+        RAISE WARNING 'Error in draw_poll_results_with_rules: %', SQLERRM;
+        RETURN json_build_object('success', false, 'error', 'Database error: ' || SQLERRM);
+END;

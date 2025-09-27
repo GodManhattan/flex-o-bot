@@ -1,0 +1,95 @@
+
+DECLARE
+    current_count INTEGER;
+    total_poll_spots INTEGER;
+    total_poll_entries INTEGER;
+    poll_record RECORD;
+    rule_check JSON;
+    result JSON;
+BEGIN
+    -- First check if user can participate based on rules
+    SELECT check_poll_participation_rules(p_poll_id, p_user_id) INTO rule_check;
+    
+    -- If not allowed, return the reason
+    IF NOT (rule_check->>'allowed')::BOOLEAN THEN
+        RETURN json_build_object(
+            'success', false, 
+            'message', rule_check->>'reason'
+        );
+    END IF;
+    
+    -- Continue with existing FCFS logic
+    RAISE NOTICE 'FCFS Entry - Poll: %, User: %, Spot: %, Max: %', 
+        p_poll_id, p_user_id, p_spot_type, p_max_spots;
+    
+    -- Get poll details
+    SELECT * INTO poll_record FROM polls WHERE id = p_poll_id;
+    
+    IF NOT FOUND THEN
+        RETURN json_build_object('success', false, 'message', 'Poll not found');
+    END IF;
+    
+    -- Count current entries for this spot type
+    SELECT COUNT(*) INTO current_count
+    FROM poll_entries 
+    WHERE poll_id = p_poll_id AND spot_type = p_spot_type;
+    
+    RAISE NOTICE 'Current count for % spots: % (max: %)', p_spot_type, current_count, p_max_spots;
+    
+    -- Check if spots are available
+    IF current_count >= p_max_spots THEN
+        RETURN json_build_object('success', false, 'message', 'No spots available for this time slot');
+    END IF;
+    
+    BEGIN
+        -- Insert poll entry
+        INSERT INTO poll_entries (poll_id, user_id, spot_type, created_at)
+        VALUES (p_poll_id, p_user_id, p_spot_type, NOW());
+        
+        -- Insert poll result immediately (FCFS winner)
+        INSERT INTO poll_results (poll_id, user_id, spot_type, created_at)
+        VALUES (p_poll_id, p_user_id, p_spot_type, NOW());
+        
+        RAISE NOTICE 'Entry and result inserted successfully';
+        
+    EXCEPTION WHEN OTHERS THEN
+        RAISE WARNING 'Error inserting entry/result: %', SQLERRM;
+        RETURN json_build_object('success', false, 'message', 'Failed to secure spot: ' || SQLERRM);
+    END;
+    
+    -- Check if all spots are taken
+    SELECT 
+        (poll_record.am_spots + poll_record.pm_spots + poll_record.all_day_spots) INTO total_poll_spots;
+    
+    SELECT COUNT(*) INTO total_poll_entries
+    FROM poll_entries 
+    WHERE poll_id = p_poll_id;
+    
+    -- Determine if poll should be closed
+    IF total_poll_entries >= total_poll_spots THEN
+        UPDATE polls 
+        SET is_active = false, results_drawn = true, updated_at = NOW()
+        WHERE id = p_poll_id;
+        
+        result := json_build_object(
+            'success', true, 
+            'message', 'Congratulations! You got the spot. All spots are now taken.',
+            'poll_full', true,
+            'spots_remaining', 0
+        );
+    ELSE
+        result := json_build_object(
+            'success', true, 
+            'message', 'Congratulations! You secured a spot.',
+            'poll_full', false,
+            'spots_remaining', (total_poll_spots - total_poll_entries)
+        );
+    END IF;
+    
+    RETURN result;
+    
+EXCEPTION 
+    WHEN OTHERS THEN
+        RAISE WARNING 'Unexpected error in handle_fcfs_entry_with_rules: %', SQLERRM;
+        RETURN json_build_object('success', false, 'message', 'Database error occurred: ' || SQLERRM);
+END;
